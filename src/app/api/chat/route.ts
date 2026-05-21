@@ -39,14 +39,15 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: 'Messages array required' }, { status: 400 })
   }
 
-  // If we have an API key, use real Claude
-  if (apiKey) {
+  // Use client-provided key, or fall back to server env var
+  const effectiveKey = apiKey || process.env.ANTHROPIC_API_KEY
+  if (effectiveKey) {
     try {
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': apiKey,
+          'x-api-key': effectiveKey,
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
