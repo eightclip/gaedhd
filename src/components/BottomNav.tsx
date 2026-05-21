@@ -2,10 +2,11 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Zap, Target, ParkingMeter, TrendingUp } from 'lucide-react'
+import { Zap, MessageCircle, Target, ParkingMeter, TrendingUp } from 'lucide-react'
 
 const tabs = [
   { href: '/', label: 'Today', icon: Zap },
+  { href: '/chat', label: 'Chat', icon: MessageCircle },
   { href: '/goals', label: 'Goals', icon: Target },
   { href: '/parking-lot', label: 'Dump', icon: ParkingMeter },
   { href: '/progress', label: 'Progress', icon: TrendingUp },
