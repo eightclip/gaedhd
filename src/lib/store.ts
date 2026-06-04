@@ -1,7 +1,9 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import type { Goal, MicroTask, ParkingLotItem, ScheduledTask } from './types'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import type { Goal, MicroTask, ParkingLotItem } from './types'
+import type { Ritual } from './rituals'
+import { DEFAULT_RITUALS } from './rituals'
 import { goals as mockGoals, microTasks as mockTasks, parkingLotItems as mockParking } from './mock-data'
 
 // ─── Types ──────────────────────────────────────────────────────
@@ -20,12 +22,28 @@ export interface ChatMessage {
   createdAt: string
 }
 
+export interface CalendarSource {
+  id: string
+  name: string
+  url: string
+  color: string
+  type: 'google' | 'ical'
+}
+
 export interface AppSettings {
   anthropicApiKey: string
   userName: string
   wakeHour: number   // e.g. 7 = 7am
   sleepHour: number   // e.g. 22 = 10pm
   transitionBufferMin: number // minutes between events
+  calendarSources: CalendarSource[]
+  userContext: string // her equipment, spaces, preferences — fed to the AI breakdown
+}
+
+const CALENDAR_COLORS = ['#C85D3E', '#7B9E6B', '#9B7EC8', '#6BA3BE', '#D4845E', '#C87E9E']
+
+export function detectCalendarType(url: string): 'google' | 'ical' {
+  return url.toLowerCase().includes('google.com') ? 'google' : 'ical'
 }
 
 export interface AppState {
@@ -34,6 +52,12 @@ export interface AppState {
   parkingLot: ParkingLotItem[]
   chatMessages: ChatMessage[]
   settings: AppSettings
+  rituals: Ritual[]
+  // Completion timestamps per ritual id (ISO strings). The rituals engine reads
+  // this to decide what's due now and resets on cadence.
+  ritualLog: Record<string, string[]>
+  // Meeting titles she's flagged as "this could be async (Slack/email)".
+  asyncMeetings: string[]
   streak: number
   tasksCompletedToday: number
 }
@@ -44,6 +68,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   wakeHour: 7,
   sleepHour: 22,
   transitionBufferMin: 3,
+  calendarSources: [],
+  userContext: '',
 }
 
 const INITIAL_STATE: AppState = {
@@ -59,6 +85,9 @@ const INITIAL_STATE: AppState = {
     }
   ],
   settings: DEFAULT_SETTINGS,
+  rituals: DEFAULT_RITUALS,
+  ritualLog: {},
+  asyncMeetings: [],
   streak: 5,
   tasksCompletedToday: 3,
 }
@@ -66,19 +95,31 @@ const INITIAL_STATE: AppState = {
 // ─── Hook ───────────────────────────────────────────────────────
 const STORAGE_KEY = 'gaedhd-state'
 
-function loadState(): AppState {
+function mergeState(parsed: Partial<AppState> | null | undefined): AppState {
+  if (!parsed) return INITIAL_STATE
+  return {
+    ...INITIAL_STATE,
+    ...parsed,
+    settings: { ...DEFAULT_SETTINGS, ...(parsed.settings ?? {}) },
+    // Seed rituals for accounts saved before they existed; keep her edits otherwise.
+    rituals: parsed.rituals && parsed.rituals.length ? parsed.rituals : DEFAULT_RITUALS,
+    ritualLog: parsed.ritualLog ?? {},
+    asyncMeetings: parsed.asyncMeetings ?? [],
+  }
+}
+
+function loadCache(): AppState {
   if (typeof window === 'undefined') return INITIAL_STATE
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return INITIAL_STATE
-    const parsed = JSON.parse(raw)
-    return { ...INITIAL_STATE, ...parsed, settings: { ...DEFAULT_SETTINGS, ...parsed.settings } }
+    return mergeState(JSON.parse(raw))
   } catch {
     return INITIAL_STATE
   }
 }
 
-function saveState(state: AppState) {
+function saveCache(state: AppState) {
   if (typeof window === 'undefined') return
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
@@ -87,19 +128,59 @@ function saveState(state: AppState) {
   }
 }
 
+function saveToServer(state: AppState) {
+  if (typeof window === 'undefined') return
+  fetch('/api/state', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ state }),
+  }).catch(() => {
+    // Offline or sync unavailable — localStorage cache still holds the data.
+  })
+}
+
 export function useStore() {
   const [state, setState] = useState<AppState>(INITIAL_STATE)
   const [loaded, setLoaded] = useState(false)
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Load from localStorage on mount
+  // Load: localStorage cache first (instant paint), then reconcile with the
+  // server, which is the source of truth across devices.
   useEffect(() => {
-    setState(loadState())
-    setLoaded(true)
+    const cache = loadCache()
+    setState(cache)
+
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch('/api/state')
+        if (!cancelled && res.ok) {
+          const data = await res.json()
+          if (data.state) {
+            setState(mergeState(data.state))
+          } else {
+            // Server has nothing yet — first sync, push the local cache up.
+            saveToServer(cache)
+          }
+        }
+      } catch {
+        // Offline / sync down — keep using the local cache.
+      } finally {
+        if (!cancelled) setLoaded(true)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
-  // Save on every change (after initial load)
+  // Persist on change: localStorage immediately, server PUT debounced.
   useEffect(() => {
-    if (loaded) saveState(state)
+    if (!loaded) return
+    saveCache(state)
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(() => saveToServer(state), 800)
   }, [state, loaded])
 
   const addGoal = useCallback((goal: Goal, tasks: MicroTask[]) => {
@@ -173,13 +254,26 @@ export function useStore() {
   }, [])
 
   const completeTask = useCallback((taskId: string) => {
-    setState(prev => ({
-      ...prev,
-      microTasks: prev.microTasks.map(t =>
+    setState(prev => {
+      const updatedTasks = prev.microTasks.map(t =>
         t.id === taskId ? { ...t, status: 'completed' as const, completedAt: new Date().toISOString() } : t
-      ),
-      tasksCompletedToday: prev.tasksCompletedToday + 1,
-    }))
+      )
+      const completedTask = prev.microTasks.find(t => t.id === taskId)
+      const goalId = completedTask?.goalId
+      let updatedGoals = prev.goals
+      if (goalId) {
+        const goalTasks = updatedTasks.filter(t => t.goalId === goalId)
+        const doneTasks = goalTasks.filter(t => t.status === 'completed')
+        const progressPct = goalTasks.length > 0 ? Math.round((doneTasks.length / goalTasks.length) * 100) : 0
+        updatedGoals = prev.goals.map(g => g.id === goalId ? { ...g, progressPct } : g)
+      }
+      return {
+        ...prev,
+        goals: updatedGoals,
+        microTasks: updatedTasks,
+        tasksCompletedToday: prev.tasksCompletedToday + 1,
+      }
+    })
   }, [])
 
   const skipTask = useCallback((taskId: string) => {
@@ -191,10 +285,87 @@ export function useStore() {
     }))
   }, [])
 
+  const editGoal = useCallback((goalId: string, updates: Partial<Goal>) => {
+    setState(prev => ({
+      ...prev,
+      goals: prev.goals.map(g => g.id === goalId ? { ...g, ...updates } : g),
+    }))
+  }, [])
+
+  const deleteGoal = useCallback((goalId: string) => {
+    setState(prev => ({
+      ...prev,
+      goals: prev.goals.filter(g => g.id !== goalId),
+      microTasks: prev.microTasks.filter(t => t.goalId !== goalId),
+    }))
+  }, [])
+
   const updateSettings = useCallback((updates: Partial<AppSettings>) => {
     setState(prev => ({
       ...prev,
       settings: { ...prev.settings, ...updates },
+    }))
+  }, [])
+
+  const addCalendarSource = useCallback((name: string, url: string) => {
+    setState(prev => {
+      const existing = prev.settings.calendarSources
+      const newSource: CalendarSource = {
+        id: `cal-${Date.now()}`,
+        name: name.trim() || 'Calendar',
+        url: url.trim(),
+        color: CALENDAR_COLORS[existing.length % CALENDAR_COLORS.length],
+        type: detectCalendarType(url),
+      }
+      return {
+        ...prev,
+        settings: { ...prev.settings, calendarSources: [...existing, newSource] },
+      }
+    })
+  }, [])
+
+  const removeCalendarSource = useCallback((id: string) => {
+    setState(prev => ({
+      ...prev,
+      settings: {
+        ...prev.settings,
+        calendarSources: prev.settings.calendarSources.filter(c => c.id !== id),
+      },
+    }))
+  }, [])
+
+  const completeRitual = useCallback((ritualId: string) => {
+    setState(prev => ({
+      ...prev,
+      ritualLog: {
+        ...prev.ritualLog,
+        [ritualId]: [...(prev.ritualLog[ritualId] ?? []), new Date().toISOString()],
+      },
+    }))
+  }, [])
+
+  // Undo the most recent completion of a ritual (mis-tap recovery).
+  const undoRitual = useCallback((ritualId: string) => {
+    setState(prev => ({
+      ...prev,
+      ritualLog: {
+        ...prev.ritualLog,
+        [ritualId]: (prev.ritualLog[ritualId] ?? []).slice(0, -1),
+      },
+    }))
+  }, [])
+
+  const updateRituals = useCallback((rituals: Ritual[]) => {
+    setState(prev => ({ ...prev, rituals }))
+  }, [])
+
+  // Flag/unflag a recurring meeting (by title) as "this could be async".
+  const toggleAsyncMeeting = useCallback((title: string) => {
+    setState(prev => ({
+      ...prev,
+      asyncMeetings: prev.asyncMeetings.includes(title)
+        ? prev.asyncMeetings.filter(t => t !== title)
+        : [...prev.asyncMeetings, title],
     }))
   }, [])
 
@@ -211,7 +382,15 @@ export function useStore() {
     addParkingLotItem,
     completeTask,
     skipTask,
+    editGoal,
+    deleteGoal,
     updateSettings,
+    addCalendarSource,
+    removeCalendarSource,
+    completeRitual,
+    undoRitual,
+    updateRituals,
+    toggleAsyncMeeting,
     resetData,
   }
 }

@@ -23,6 +23,18 @@
   --accent-soft: #F5E6E0;
   --success: #7B9E6B;
   --success-soft: #E8F0E4;
+
+  /* Soft tints (card fills) paired with ink (text/accent on the tint) */
+  --tint-terracotta: #F5E6E0; --ink-terracotta: #C85D3E;
+  --tint-sage: #E8F0E4;       --ink-sage: #7B9E6B;
+  --tint-lavender: #ECE5F3;   --ink-lavender: #9B7EC8;
+  --tint-rose: #F5E4EC;       --ink-rose: #C87E9E;
+  --tint-sky: #E2EEF2;        --ink-sky: #6BA3BE;
+  --tint-gold: #F5ECD9;       --ink-gold: #A89060;
+
+  /* Color of the day. JS overrides these at runtime; terracotta is the fallback. */
+  --today-tint: var(--tint-terracotta);
+  --today-ink: var(--ink-terracotta);
 }
 
 @theme inline {
@@ -36,8 +48,19 @@
   --color-accent-soft: var(--accent-soft);
   --color-success: var(--success);
   --color-success-soft: var(--success-soft);
+
+  --color-tint-terracotta: var(--tint-terracotta); --color-ink-terracotta: var(--ink-terracotta);
+  --color-tint-sage: var(--tint-sage);             --color-ink-sage: var(--ink-sage);
+  --color-tint-lavender: var(--tint-lavender);     --color-ink-lavender: var(--ink-lavender);
+  --color-tint-rose: var(--tint-rose);             --color-ink-rose: var(--ink-rose);
+  --color-tint-sky: var(--tint-sky);               --color-ink-sky: var(--ink-sky);
+  --color-tint-gold: var(--tint-gold);             --color-ink-gold: var(--ink-gold);
+  --color-today-tint: var(--today-tint);
+  --color-today-ink: var(--today-ink);
+
   --font-sans: var(--font-nunito);
   --font-display: var(--font-fraunces);
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, "Roboto Mono", monospace;
 }
 
 @media (prefers-color-scheme: dark) {

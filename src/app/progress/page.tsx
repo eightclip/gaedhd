@@ -2,19 +2,24 @@
 
 import { motion } from 'framer-motion'
 import { Flame, Trophy, Clock, CheckCircle2 } from 'lucide-react'
-import { goals, categoryColors, dailyStats, microTasks } from '@/lib/mock-data'
+import { categoryColors } from '@/lib/mock-data'
 import { ProgressRing } from '@/components/ProgressRing'
+import { useStore } from '@/lib/store'
 
 export default function ProgressPage() {
-  const totalTasks = microTasks.length
-  const completedTasks = microTasks.filter(t => t.status === 'completed').length
-  const overallProgress = Math.round((completedTasks / totalTasks) * 100)
+  const store = useStore()
+
+  const totalTasks = store.microTasks.length
+  const completedTasks = store.microTasks.filter(t => t.status === 'completed').length
+  const overallProgress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
+  const totalMinutes = store.microTasks
+    .filter(t => t.status === 'completed')
+    .reduce((sum, t) => sum + t.durationMin, 0)
 
   return (
-    <div className="max-w-lg mx-auto px-5 pt-12">
+    <div className="max-w-lg md:max-w-2xl mx-auto px-5 md:px-8 pt-12">
       <h1 className="font-display text-3xl font-bold mb-6">Progress</h1>
 
-      {/* Big overall ring */}
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -28,7 +33,6 @@ export default function ProgressPage() {
         </ProgressRing>
       </motion.div>
 
-      {/* Stats row */}
       <div className="grid grid-cols-3 gap-3 mb-8">
         <motion.div
           initial={{ opacity: 0, y: 10 }}
@@ -37,7 +41,7 @@ export default function ProgressPage() {
           className="bg-accent-soft rounded-2xl p-4 text-center"
         >
           <Flame size={20} className="text-accent mx-auto mb-1" />
-          <p className="text-2xl font-extrabold">{dailyStats.streak}</p>
+          <p className="text-2xl font-extrabold">{store.streak}</p>
           <p className="text-[10px] text-muted font-semibold uppercase">day streak</p>
         </motion.div>
 
@@ -59,20 +63,27 @@ export default function ProgressPage() {
           className="bg-muted-light rounded-2xl p-4 text-center"
         >
           <Clock size={20} className="text-muted mx-auto mb-1" />
-          <p className="text-2xl font-extrabold">{dailyStats.totalMinutes}m</p>
-          <p className="text-[10px] text-muted font-semibold uppercase">today</p>
+          <p className="text-2xl font-extrabold">{totalMinutes}m</p>
+          <p className="text-[10px] text-muted font-semibold uppercase">total</p>
         </motion.div>
       </div>
 
-      {/* Per-goal progress */}
       <p className="text-xs font-bold uppercase tracking-widest text-muted mb-3">
         Goal Breakdown
       </p>
+
+      {store.goals.length === 0 && (
+        <div className="text-center py-12 text-muted">
+          <p className="text-3xl mb-2">🌱</p>
+          <p className="text-sm">Add some goals to track progress</p>
+        </div>
+      )}
+
       <div className="space-y-3">
-        {goals.map((goal, i) => {
+        {store.goals.map((goal, i) => {
           const color = categoryColors[goal.category] || '#8B6F5E'
-          const taskCount = microTasks.filter(t => t.goalId === goal.id).length
-          const doneCount = microTasks.filter(t => t.goalId === goal.id && t.status === 'completed').length
+          const taskCount = store.microTasks.filter(t => t.goalId === goal.id).length
+          const doneCount = store.microTasks.filter(t => t.goalId === goal.id && t.status === 'completed').length
 
           return (
             <motion.div
@@ -92,7 +103,6 @@ export default function ProgressPage() {
                   {goal.progressPct}%
                 </span>
               </div>
-              {/* Progress bar */}
               <div className="h-2 bg-muted-light rounded-full overflow-hidden">
                 <motion.div
                   className="h-full rounded-full"
@@ -107,7 +117,6 @@ export default function ProgressPage() {
         })}
       </div>
 
-      {/* Encouraging message */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}

@@ -1,0 +1,97 @@
+import { getSupabaseAdmin, supabaseConfigured, STATE_TABLE } from '@/lib/supabase-server'
+import type { Goal, MicroTask, CalendarEvent } from '@/lib/types'
+import type { CalendarSource } from '@/lib/store'
+import type { Ritual } from '@/lib/rituals'
+import { rankRituals, DEFAULT_RITUALS } from '@/lib/rituals'
+import { currentNextActions } from '@/lib/schedule'
+import { fetchEventsForSources } from '@/lib/ical'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
+// Token-protected, read-only "what matters right now" endpoint. Powers the office TV
+// kiosk and any ambient device. Example: GET /api/now?token=XXX
+export async function GET(request: Request) {
+  if (!supabaseConfigured()) {
+    return Response.json({ error: 'sync_not_configured' }, { status: 503 })
+  }
+
+  const params = new URL(request.url).searchParams
+  const token = process.env.GAEDHD_NOW_TOKEN
+  const provided = params.get('token')
+  if (!token || provided !== token) {
+    return Response.json({ error: 'unauthorized' }, { status: 401 })
+  }
+
+  const email = (
+    process.env.GAEDHD_NOW_EMAIL ||
+    (process.env.ALLOWED_EMAILS || '').split(',')[0] ||
+    ''
+  ).trim().toLowerCase()
+  if (!email) {
+    return Response.json({ error: 'no_user_configured' }, { status: 500 })
+  }
+
+  const supabase = getSupabaseAdmin()
+  const { data, error } = await supabase
+    .from(STATE_TABLE)
+    .select('state')
+    .eq('user_email', email)
+    .maybeSingle()
+
+  if (error) {
+    return Response.json({ error: error.message }, { status: 500 })
+  }
+
+  const state = (data?.state ?? {}) as {
+    goals?: Goal[]
+    microTasks?: MicroTask[]
+    rituals?: Ritual[]
+    ritualLog?: Record<string, string[]>
+    streak?: number
+    settings?: { calendarSources?: CalendarSource[]; wakeHour?: number; sleepHour?: number }
+  }
+
+  const now = new Date()
+  const goals = state.goals ?? []
+  const microTasks = state.microTasks ?? []
+
+  // Her single next thing, via the same next-action logic the app uses.
+  const next = currentNextActions(goals, microTasks)[0]
+  const task = next
+    ? { title: next.microTask.title, durationMin: next.microTask.durationMin, phase: next.microTask.phase, goal: next.goal.title, emoji: next.goal.emoji }
+    : null
+
+  // Rituals due now (never expose private ones to a shared screen).
+  const rituals = (state.rituals && state.rituals.length ? state.rituals : DEFAULT_RITUALS).filter(r => !r.private)
+  const ritualLog = state.ritualLog ?? {}
+  const ritualsDue = rankRituals(rituals, ritualLog, now)
+    .filter(s => s.due)
+    .map(s => ({ id: s.ritual.id, title: s.ritual.title, emoji: s.ritual.emoji, nudge: s.ritual.nudge, tint: s.ritual.tint }))
+
+  // Today's wins.
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const doneToday = microTasks.filter(t => t.status === 'completed' && t.completedAt && new Date(t.completedAt) >= startOfDay)
+  const completedToday = doneToday.length
+  const minutesToday = doneToday.reduce((sum, t) => sum + t.durationMin, 0)
+
+  // Today's meetings (client passes its local day window to avoid timezone drift).
+  const dayStart = params.get('start') ? new Date(params.get('start')!) : startOfDay
+  const dayEnd = params.get('end') ? new Date(params.get('end')!) : new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
+  const sources = state.settings?.calendarSources ?? []
+  let events: CalendarEvent[] = []
+  if (sources.length) {
+    const res = await fetchEventsForSources(sources, dayStart, dayEnd)
+    events = res.events
+  }
+
+  return Response.json({
+    task,
+    pendingCount: currentNextActions(goals, microTasks).length,
+    ritualsDue,
+    streak: state.streak ?? 0,
+    completedToday,
+    minutesToday,
+    events,
+  })
+}

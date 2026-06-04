@@ -1,47 +1,45 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion'
-import { Check, SkipForward, Clock, ChevronLeft } from 'lucide-react'
-import type { ScheduledTask } from '@/lib/types'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Check, SkipForward, Clock } from 'lucide-react'
+import type { TaskWithGoal } from '@/lib/types'
 import { categoryColors } from '@/lib/mock-data'
 import { ConfettiPop } from './ConfettiPop'
 
 interface JustDoThisCardProps {
-  tasks: ScheduledTask[]
+  tasks: TaskWithGoal[]
+  onComplete?: (taskId: string) => void
+  onSkip?: (taskId: string) => void
 }
 
-export function JustDoThisCard({ tasks }: JustDoThisCardProps) {
-  const [currentIndex, setCurrentIndex] = useState(0)
+export function JustDoThisCard({ tasks, onComplete, onSkip }: JustDoThisCardProps) {
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set())
   const [timeLeft, setTimeLeft] = useState(0)
   const [showConfetti, setShowConfetti] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
 
-  // Get active (non-completed, non-skipped) tasks
   const activeTasks = tasks.filter(t => !completedIds.has(t.id))
   const currentTask = activeTasks[0]
   const totalDone = completedIds.size
 
-  // Reset timer when task changes
   useEffect(() => {
     if (currentTask) {
       setTimeLeft(currentTask.microTask.durationMin * 60)
     }
   }, [currentTask?.id])
 
-  // Countdown
+  const handleSkip = useCallback(() => {
+    if (!currentTask) return
+    setCompletedIds(prev => new Set(prev).add(currentTask.id))
+    onSkip?.(currentTask.microTask.id)
+  }, [currentTask, onSkip])
+
   useEffect(() => {
     if (!currentTask || timeLeft <= 0) return
     const interval = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 1) {
-          // Time's up — auto advance (no guilt!)
-          handleSkip()
-          return 0
-        }
-        return prev - 1
-      })
+      // Stop at zero — never auto-skip. The task stays until she acts on it.
+      setTimeLeft(prev => (prev <= 1 ? 0 : prev - 1))
     }, 1000)
     return () => clearInterval(interval)
   }, [currentTask?.id, timeLeft > 0])
@@ -49,28 +47,14 @@ export function JustDoThisCard({ tasks }: JustDoThisCardProps) {
   const handleComplete = useCallback(() => {
     if (!currentTask) return
     setCompletedIds(prev => new Set(prev).add(currentTask.id))
+    onComplete?.(currentTask.microTask.id)
     setShowConfetti(true)
     setShowSuccess(true)
     setTimeout(() => {
       setShowConfetti(false)
       setShowSuccess(false)
     }, 1500)
-  }, [currentTask])
-
-  const handleSkip = useCallback(() => {
-    if (!currentTask) return
-    // Skip silently — no guilt, just move on
-    setCompletedIds(prev => new Set(prev).add(currentTask.id))
-  }, [currentTask])
-
-  // Swipe gesture
-  const x = useMotionValue(0)
-  const opacity = useTransform(x, [-150, 0, 150], [0.5, 1, 0.5])
-  const bgColor = useTransform(
-    x,
-    [-150, -50, 0, 50, 150],
-    ['#C85D3E', 'transparent', 'transparent', 'transparent', '#7B9E6B']
-  )
+  }, [currentTask, onComplete])
 
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60)
@@ -82,7 +66,7 @@ export function JustDoThisCard({ tasks }: JustDoThisCardProps) {
     ? 1 - (timeLeft / (currentTask.microTask.durationMin * 60))
     : 0
 
-  if (!currentTask && activeTasks.length === 0 && totalDone > 0) {
+  if (!currentTask && totalDone > 0) {
     return (
       <motion.div
         initial={{ scale: 0.9, opacity: 0 }}
@@ -106,26 +90,15 @@ export function JustDoThisCard({ tasks }: JustDoThisCardProps) {
     <div className="relative">
       <ConfettiPop active={showConfetti} />
 
-      <AnimatePresence mode="popLayout">
+      <AnimatePresence mode="wait">
         <motion.div
           key={currentTask.id}
-          initial={{ scale: 0.95, opacity: 0, y: 20 }}
+          initial={{ scale: 0.96, opacity: 0, y: 16 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
-          exit={{ scale: 0.9, opacity: 0, x: -200 }}
+          exit={{ scale: 0.96, opacity: 0, y: -16 }}
           transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-          drag="x"
-          dragConstraints={{ left: 0, right: 0 }}
-          dragElastic={0.3}
-          onDragEnd={(_, info) => {
-            if (info.offset.x > 100) handleComplete()
-            else if (info.offset.x < -100) handleSkip()
-          }}
-          className="relative overflow-hidden rounded-3xl cursor-grab active:cursor-grabbing"
-          style={{
-            backgroundColor: color,
-            x,
-            opacity,
-          }}
+          className="relative overflow-hidden rounded-3xl"
+          style={{ backgroundColor: color }}
         >
           {/* Progress bar along top */}
           <div className="absolute top-0 left-0 right-0 h-1.5 bg-black/10">
@@ -137,7 +110,6 @@ export function JustDoThisCard({ tasks }: JustDoThisCardProps) {
           </div>
 
           <div className="p-6 pt-8 text-white min-h-[220px] flex flex-col">
-            {/* Goal label */}
             <div className="flex items-center justify-between mb-4">
               <span className="text-sm font-semibold opacity-80 uppercase tracking-wider">
                 {currentTask.goal.emoji} {currentTask.goal.title}
@@ -147,12 +119,10 @@ export function JustDoThisCard({ tasks }: JustDoThisCardProps) {
               </span>
             </div>
 
-            {/* The task — BIG */}
             <h2 className="font-display text-3xl font-bold leading-tight mb-4 flex-1">
               {currentTask.microTask.title}
             </h2>
 
-            {/* Timer + controls */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Clock size={18} className="opacity-70" />
@@ -179,16 +149,10 @@ export function JustDoThisCard({ tasks }: JustDoThisCardProps) {
               </div>
             </div>
 
-            {/* Swipe hint */}
-            <div className="mt-3 flex items-center justify-center gap-1.5 opacity-40 text-xs">
-              <ChevronLeft size={12} className="animate-swipe-hint" />
-              <span>swipe right = done · swipe left = skip</span>
-            </div>
           </div>
         </motion.div>
       </AnimatePresence>
 
-      {/* Success overlay */}
       <AnimatePresence>
         {showSuccess && (
           <motion.div
@@ -212,10 +176,9 @@ export function JustDoThisCard({ tasks }: JustDoThisCardProps) {
         )}
       </AnimatePresence>
 
-      {/* Progress dots */}
       {tasks.length > 1 && (
         <div className="flex items-center justify-center gap-1.5 mt-4">
-          {tasks.map((t, i) => (
+          {tasks.map((t) => (
             <div
               key={t.id}
               className={`rounded-full transition-all duration-300 ${

@@ -23,7 +23,7 @@ export default function ParkingLotPage() {
   }
 
   return (
-    <div className="max-w-lg mx-auto px-5 pt-12">
+    <div className="max-w-lg md:max-w-2xl mx-auto px-5 md:px-8 pt-12">
       <div className="mb-6">
         <h1 className="font-display text-3xl font-bold">Parking Lot</h1>
         <p className="text-sm text-muted mt-1">

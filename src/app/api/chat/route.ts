@@ -33,11 +33,15 @@ EXAMPLES of good micro-tasks:
 If the user is just chatting or asking questions (not stating a goal), respond naturally without the <goal> block. If they seem overwhelmed, suggest the "I can't even" approach — give them the absolute tiniest possible action.`
 
 export async function POST(request: NextRequest) {
-  const { messages, apiKey } = await request.json()
+  const { messages, apiKey, userContext } = await request.json()
 
   if (!messages || !Array.isArray(messages)) {
     return Response.json({ error: 'Messages array required' }, { status: 400 })
   }
+
+  const system = userContext
+    ? `${SYSTEM_PROMPT}\n\nHER SETUP (use this to make steps specific to her — name her actual equipment and spaces, and vary the specifics so repeat goals stay fresh):\n${userContext}`
+    : SYSTEM_PROMPT
 
   // Use client-provided key, or fall back to server env var
   const effectiveKey = apiKey || process.env.ANTHROPIC_API_KEY
@@ -53,7 +57,7 @@ export async function POST(request: NextRequest) {
         body: JSON.stringify({
           model: 'claude-sonnet-4-20250514',
           max_tokens: 1024,
-          system: SYSTEM_PROMPT,
+          system,
           messages: messages.map((m: { role: string; content: string }) => ({
             role: m.role,
             content: m.content,
