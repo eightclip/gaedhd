@@ -103,7 +103,22 @@ GaeDHD bot — your ADHD second brain, now in Telegram.
 Everything lands in your GaeDHD app at https://gaedhd.jmj.fyi for you to accept, skip, or reschedule. I never delete anything — I only add.
 `.trim();
 
-bot.command("start", (ctx) => ctx.reply(HELP_TEXT, { parse_mode: "Markdown" }));
+// First hello — the birthday greeting she sees when she opens the bot.
+const WELCOME_TEXT = `
+Hey! 🎂 Happy Birthday.
+
+I'm here to help you with your brain. Think of me as a little second brain in your pocket — throw anything at me and I'll hold onto it for you.
+
+*Try it*
+• Send me any thought or to-do → it lands in your list.
+• Snap a photo of a handwritten list → I'll read it and add each item.
+• /next — the one thing to focus on right now.
+• /today — your snapshot: task, rituals, streak, next meeting.
+
+It all shows up in your app at https://gaedhd.jmj.fyi. I only ever add, never delete. 💛
+`.trim();
+
+bot.command("start", (ctx) => ctx.reply(WELCOME_TEXT, { parse_mode: "Markdown" }));
 bot.command("help", (ctx) => ctx.reply(HELP_TEXT, { parse_mode: "Markdown" }));
 
 // ---------------------------------------------------------------------------
