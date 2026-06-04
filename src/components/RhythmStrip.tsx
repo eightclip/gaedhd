@@ -6,6 +6,15 @@ import { format } from 'date-fns'
 import type { Ritual } from '@/lib/rituals'
 import { rankRituals } from '@/lib/rituals'
 import { TINTS } from '@/lib/theme'
+import { RITUAL_ILLO } from '@/lib/illustrations'
+import { Illo } from './Illo'
+
+// A ritual's hand-drawn icon, or its emoji if there's no illustration for it.
+function ritualIcon(id: string, emoji: string, h = 'h-7') {
+  return RITUAL_ILLO[id]
+    ? <Illo src={RITUAL_ILLO[id]} className={`${h} w-7 object-contain shrink-0`} />
+    : <span className="text-xl w-7 text-center shrink-0">{emoji}</span>
+}
 
 interface RhythmStripProps {
   rituals: Ritual[]
@@ -44,7 +53,7 @@ export function RhythmStrip({ rituals, ritualLog, now, onComplete, onUndo, hideP
                 onClick={() => onComplete(s.ritual.id)}
                 className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted-light transition-colors"
               >
-                <span className="text-xl w-7 text-center shrink-0">{s.ritual.emoji}</span>
+                {ritualIcon(s.ritual.id, s.ritual.emoji)}
                 <span className="flex-1 min-w-0">
                   <span className="block text-sm font-semibold truncate">{s.ritual.title}</span>
                   <span className="block text-xs text-muted truncate">{s.ritual.nudge}</span>
@@ -70,7 +79,7 @@ export function RhythmStrip({ rituals, ritualLog, now, onComplete, onUndo, hideP
             onClick={() => onUndo(s.ritual.id)}
             className="w-full flex items-center gap-3 px-4 py-2.5 text-left opacity-50 hover:opacity-75 transition-opacity"
           >
-            <span className="text-lg w-7 text-center shrink-0">{s.ritual.emoji}</span>
+            {ritualIcon(s.ritual.id, s.ritual.emoji, 'h-6')}
             <span className="flex-1 text-sm font-medium line-through truncate">{s.ritual.title}</span>
             {s.nextDueAt && (
               <span className="text-[11px] font-mono text-muted shrink-0">

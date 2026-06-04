@@ -12,6 +12,8 @@ import { RhythmStrip } from './RhythmStrip'
 import { PresenceBar } from './PresenceBar'
 import { MeetingCopilot } from './MeetingCopilot'
 import { CaptureSheet } from './CaptureSheet'
+import { Illo } from './Illo'
+import { ILLO, DONE_ILLOS, pickDaily } from '@/lib/illustrations'
 import { categoryColors } from '@/lib/mock-data'
 import type { CalendarEvent, TimelineItem } from '@/lib/types'
 import { useStore } from '@/lib/store'
@@ -186,7 +188,7 @@ export function TodayView() {
       {topTasks.length === 0 && store.goals.length > 0 && (
         <section className="mb-8">
           <div className="bg-success-soft border border-success/20 rounded-3xl p-8 text-center">
-            <div className="text-5xl mb-3">🎉</div>
+            <Illo src={pickDaily(DONE_ILLOS)} className="h-24 w-auto mx-auto mb-3" />
             <h2 className="font-display text-2xl font-bold mb-1">All clear</h2>
             <p className="text-muted text-sm">Nothing on the list. Go do something you love.</p>
           </div>
@@ -198,7 +200,7 @@ export function TodayView() {
             onClick={() => setCaptureOpen(true)}
             className="w-full bg-today-tint rounded-3xl p-8 text-center hover:opacity-90 transition-opacity"
           >
-            <div className="text-4xl mb-2">🌱</div>
+            <Illo src={ILLO.startList} className="h-20 w-auto mx-auto mb-3 animate-float" />
             <h2 className="font-display text-2xl font-bold mb-1 text-today-ink">Start your list</h2>
             <p className="text-muted text-sm">Snap a photo of a list, or jot one thing you want to get done.</p>
           </button>

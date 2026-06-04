@@ -2,8 +2,10 @@
 
 import { useState, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Camera, Loader2, Plus, Sparkles } from 'lucide-react'
+import { X, Loader2, Plus, Sparkles } from 'lucide-react'
 import type { Goal, MicroTask } from '@/lib/types'
+import { Illo } from './Illo'
+import { ILLO } from '@/lib/illustrations'
 
 interface InboxItem { id: string; raw_text: string | null; source: string }
 
@@ -268,7 +270,7 @@ export function CaptureSheet({ open, onClose, apiKey, userContext, onAddGoal, in
                     {busy ? (
                       <><Loader2 size={28} className="animate-spin text-today-ink" /><span className="text-sm text-muted">Reading your list...</span></>
                     ) : (
-                      <><Camera size={28} className="text-today-ink" /><span className="text-sm font-semibold">Take or upload a photo</span><span className="text-xs text-muted">She writes it, the app reads it</span></>
+                      <><Illo src={ILLO.snapList} className="h-16 w-auto mb-1" /><span className="text-sm font-semibold">Take or upload a photo</span><span className="text-xs text-muted">She writes it, the app reads it</span></>
                     )}
                   </button>
                 </div>

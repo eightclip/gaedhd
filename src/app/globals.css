@@ -94,6 +94,13 @@ main {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+/* Gentle float for hero illustrations */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.animate-float { animation: float 4s ease-in-out infinite; }
+
 /* Swipe gesture hint */
 @keyframes swipe-hint {
   0%, 100% { transform: translateX(0); }

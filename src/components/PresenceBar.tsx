@@ -6,6 +6,8 @@ import { MapPin, Check } from 'lucide-react'
 import type { TaskWithGoal } from '@/lib/types'
 import type { Ritual } from '@/lib/rituals'
 import { rankRituals } from '@/lib/rituals'
+import { RITUAL_ILLO } from '@/lib/illustrations'
+import { Illo } from './Illo'
 
 const ROOMS: { key: string; label: string; emoji: string }[] = [
   { key: 'studio', label: 'Studio', emoji: '🎨' },
@@ -111,7 +113,9 @@ export function PresenceBar({ tasks, rituals, ritualLog, now, onCompleteTask, on
         <div className="bg-card border border-card-border rounded-3xl divide-y divide-card-border overflow-hidden mt-1">
           {roomRituals.map(s => (
             <button key={s.ritual.id} onClick={() => onCompleteRitual(s.ritual.id)} className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted-light transition-colors">
-              <span className="text-xl w-7 text-center shrink-0">{s.ritual.emoji}</span>
+              {RITUAL_ILLO[s.ritual.id]
+                ? <Illo src={RITUAL_ILLO[s.ritual.id]} className="h-7 w-7 object-contain shrink-0" />
+                : <span className="text-xl w-7 text-center shrink-0">{s.ritual.emoji}</span>}
               <span className="flex-1 text-sm font-semibold truncate">{s.ritual.title}</span>
               <span className="shrink-0 w-6 h-6 rounded-full border-2 border-today-ink" />
             </button>

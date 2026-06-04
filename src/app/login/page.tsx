@@ -1,5 +1,6 @@
 import { auth, signIn } from "@/auth"
 import { redirect } from "next/navigation"
+import { Illo } from "@/components/Illo"
 
 export default async function LoginPage(props: { searchParams: Promise<{ error?: string }> }) {
   const session = await auth()
@@ -11,6 +12,7 @@ export default async function LoginPage(props: { searchParams: Promise<{ error?:
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-6 bg-background">
       <div className="text-center mb-10">
+        <Illo src="/avatar.png" alt="GaeDHD" className="w-28 h-28 rounded-[1.75rem] mx-auto mb-5 shadow-sm" />
         <h1 className="font-display text-5xl font-extrabold tracking-tight mb-2">
           GaeDHD
         </h1>
