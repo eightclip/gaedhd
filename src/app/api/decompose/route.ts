@@ -1,51 +1,166 @@
 import { NextRequest } from 'next/server'
 
+const SYSTEM_PROMPT = `You are GaeDHD, an ADHD-friendly second brain. Turn whatever she captures into an
+ordered list of next actions, where the first one is the single thing she can do right now.
+
+Respond ONLY with valid JSON — no extra text, no markdown fences:
+{
+  "title": "Short title (4-6 words max)",
+  "emoji": "one relevant emoji",
+  "tasks": [
+    {"title": "The concrete next action", "durationMin": 10, "phase": "Step", "energyLevel": "low", "cognitiveLoad": "light"},
+    ...
+  ]
+}
+
+How to break it down:
+- Produce 3-8 steps, IN ORDER. tasks[0] is the very first thing to do right now.
+  She only ever sees the current step until she finishes it, then the next appears.
+- Each step is ONE concrete action with zero ambiguity about what to do.
+  Bad: "Work on the project" | Good: "Open the doc and write just the intro paragraph"
+- If a step is something she does herself, make it tiny: 5-15 minutes.
+- If a step depends on someone else or on leaving the house, make it the real-world
+  action and keep it short. Good: "Call the painter and ask for a quote",
+  "Text the dentist to book a cleaning", "Buy painter's tape at the hardware store".
+- Steps may depend on earlier ones (call -> get quote -> schedule -> prep -> do).
+  That's expected. Just order them correctly.
+- Be PRESCRIPTIVE. If she gave her setup (equipment, rooms, people), use real names and gear.
+  Bad: "do some squats" | Good: "Grab the kettlebell in your room and do 25 RDLs"
+- VARY the specifics so repeat goals stay fresh.
+- durationMin: realistic minutes for that step.
+- phase: a 1-3 word label for the step ("Call", "Prep", "Do it", "Wrap up").
+- energyLevel: "low" | "medium" | "high". cognitiveLoad: "mindless" | "light" | "deep".`
+
 export async function POST(request: NextRequest) {
-  const { goal, category, lifeArea } = await request.json()
+  const { goal, category, lifeArea, apiKey, userContext } = await request.json()
 
   if (!goal || typeof goal !== 'string') {
     return Response.json({ error: 'Goal text is required' }, { status: 400 })
   }
 
-  // TODO: Replace with real Claude API call when ANTHROPIC_API_KEY is set
-  // For now, return mock decomposition
-  const mockTasks = generateMockDecomposition(goal, category)
+  const effectiveKey = apiKey || process.env.ANTHROPIC_API_KEY
 
+  if (effectiveKey) {
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': effectiveKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1024,
+          system: SYSTEM_PROMPT,
+          messages: [
+            {
+              role: 'user',
+              content: [
+                `Goal: "${goal}"`,
+                `Category: ${category}`,
+                `Life area: ${lifeArea}`,
+                userContext ? `\nHer setup (use this to make steps specific to her):\n${userContext}` : '',
+              ].filter(Boolean).join('\n'),
+            },
+          ],
+        }),
+      })
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}))
+        return Response.json(
+          { error: `Claude API error: ${err.error?.message || response.statusText}` },
+          { status: response.status }
+        )
+      }
+
+      const data = await response.json()
+      const text = data.content?.[0]?.text || '{}'
+
+      try {
+        const parsed = JSON.parse(text)
+        return Response.json({ goal: { title: parsed.title, emoji: parsed.emoji }, microTasks: parsed.tasks })
+      } catch {
+        return Response.json({ error: 'Could not parse Claude response' }, { status: 500 })
+      }
+    } catch (err) {
+      return Response.json(
+        { error: `Failed to reach Claude API: ${err instanceof Error ? err.message : 'unknown'}` },
+        { status: 500 }
+      )
+    }
+  }
+
+  // No API key — use smart mock decomposition
+  const mockTasks = generateMockDecomposition(goal, category)
   return Response.json({
-    goal: {
-      title: goal,
-      category,
-      lifeArea,
-      emoji: getCategoryEmoji(category),
-    },
+    goal: { title: goal, emoji: getCategoryEmoji(category) },
     microTasks: mockTasks,
   })
 }
 
 function generateMockDecomposition(goal: string, category: string) {
-  // Simple mock that creates reasonable micro-tasks
   const goalLower = goal.toLowerCase()
 
-  if (goalLower.includes('rdl') || goalLower.includes('workout') || goalLower.includes('exercise')) {
+  // Projects that depend on other people or appointments: the next action is the call,
+  // not a 10-minute work chunk. This is the "call the painter until it's booked" case.
+  if (goalLower.match(/paint|plumb|contractor|dentist|doctor|appointment|repair|fix|install|schedul|book|quote|mechanic|haircut|vet|electrician|handyman|inspect/i)) {
     return [
-      { title: 'Grab your equipment', durationMin: 1, phase: 'Prep', energyLevel: 'low', cognitiveLoad: 'mindless' },
-      { title: 'Find a clear spot and warm up', durationMin: 2, phase: 'Prep', energyLevel: 'medium', cognitiveLoad: 'mindless' },
-      { title: 'First set — 5 reps, focus on form', durationMin: 2, phase: 'Work', energyLevel: 'high', cognitiveLoad: 'mindless' },
-      { title: 'Rest 30 seconds', durationMin: 1, phase: 'Work', energyLevel: 'low', cognitiveLoad: 'mindless' },
-      { title: 'Second set — 5 reps, slow and controlled', durationMin: 2, phase: 'Work', energyLevel: 'high', cognitiveLoad: 'mindless' },
-      { title: 'Rest 30 seconds', durationMin: 1, phase: 'Work', energyLevel: 'low', cognitiveLoad: 'mindless' },
-      { title: 'Third set — 5 reps, squeeze at the top', durationMin: 2, phase: 'Work', energyLevel: 'high', cognitiveLoad: 'mindless' },
-      { title: 'Cool down stretch', durationMin: 2, phase: 'Cool Down', energyLevel: 'low', cognitiveLoad: 'mindless' },
+      { title: `Look up a number for: ${goal}`, durationMin: 5, phase: 'Find', energyLevel: 'low', cognitiveLoad: 'light' },
+      { title: 'Make the call or send the text, and ask to get it scheduled', durationMin: 5, phase: 'Call', energyLevel: 'medium', cognitiveLoad: 'light' },
+      { title: 'Put the date and time on the calendar', durationMin: 3, phase: 'Schedule', energyLevel: 'low', cognitiveLoad: 'mindless' },
+      { title: 'Do any quick prep needed before they arrive', durationMin: 10, phase: 'Prep', energyLevel: 'medium', cognitiveLoad: 'light' },
     ]
   }
 
-  // Generic decomposition
+  if (goalLower.match(/rdl|squat|workout|exercise|push.?up|plank|stretch|yoga|run|walk|gym/i)) {
+    return [
+      { title: 'Grab your equipment and clear a space', durationMin: 5, phase: 'Prep', energyLevel: 'low', cognitiveLoad: 'mindless' },
+      { title: 'Warm up — 10 slow bodyweight squats', durationMin: 5, phase: 'Prep', energyLevel: 'medium', cognitiveLoad: 'mindless' },
+      { title: 'First set — 8 reps, focus on form', durationMin: 5, phase: 'Work', energyLevel: 'high', cognitiveLoad: 'mindless' },
+      { title: 'Rest and breathe, then second set — 8 reps', durationMin: 7, phase: 'Work', energyLevel: 'high', cognitiveLoad: 'mindless' },
+      { title: 'Final set — give it your best, then cool down stretch', durationMin: 8, phase: 'Finish', energyLevel: 'medium', cognitiveLoad: 'mindless' },
+    ]
+  }
+
+  if (goalLower.match(/clean|kitchen|bathroom|dishes|laundry|vacuum|mop|organize|tidy|declutter/i)) {
+    return [
+      { title: 'Gather supplies — cleaner, cloth, trash bag', durationMin: 5, phase: 'Prep', energyLevel: 'low', cognitiveLoad: 'mindless' },
+      { title: 'Clear one surface completely — left counter or table', durationMin: 10, phase: 'Work', energyLevel: 'medium', cognitiveLoad: 'mindless' },
+      { title: 'Wipe down that surface and the stove top', durationMin: 8, phase: 'Work', energyLevel: 'medium', cognitiveLoad: 'mindless' },
+      { title: 'Deal with dishes — load or handwash bottom rack only', durationMin: 10, phase: 'Work', energyLevel: 'low', cognitiveLoad: 'mindless' },
+      { title: 'Take out trash and do a 60-second sweep of the floor', durationMin: 5, phase: 'Finish', energyLevel: 'low', cognitiveLoad: 'mindless' },
+    ]
+  }
+
+  if (goalLower.match(/learn|study|read|spanish|french|course|book|practice|duolingo/i)) {
+    return [
+      { title: 'Open your learning material and read the first section heading', durationMin: 5, phase: 'Prep', energyLevel: 'low', cognitiveLoad: 'light' },
+      { title: 'Review 5 things you learned last time', durationMin: 7, phase: 'Prep', energyLevel: 'low', cognitiveLoad: 'light' },
+      { title: 'Work through 3-5 new items at your own pace', durationMin: 10, phase: 'Work', energyLevel: 'medium', cognitiveLoad: 'light' },
+      { title: 'Quiz yourself — write down what you remember without looking', durationMin: 8, phase: 'Work', energyLevel: 'medium', cognitiveLoad: 'light' },
+      { title: 'Write your one favorite new thing in a note and close up', durationMin: 5, phase: 'Finish', energyLevel: 'low', cognitiveLoad: 'light' },
+    ]
+  }
+
+  if (goalLower.match(/paint|draw|art|sketch|watercolor|craft|create|design|knit|crochet/i)) {
+    return [
+      { title: 'Get your supplies out on the table — don\'t skip this', durationMin: 5, phase: 'Prep', energyLevel: 'low', cognitiveLoad: 'mindless' },
+      { title: 'Set up your workspace and any prep work', durationMin: 7, phase: 'Prep', energyLevel: 'low', cognitiveLoad: 'light' },
+      { title: 'Work on one small section — no perfection, just progress', durationMin: 10, phase: 'Work', energyLevel: 'medium', cognitiveLoad: 'light' },
+      { title: 'Step back, look at it, then do one more small section', durationMin: 10, phase: 'Work', energyLevel: 'medium', cognitiveLoad: 'light' },
+      { title: 'Clean up tools and put supplies away', durationMin: 5, phase: 'Finish', energyLevel: 'low', cognitiveLoad: 'mindless' },
+    ]
+  }
+
+  // Generic fallback
   return [
-    { title: `Get ready for: ${goal}`, durationMin: 2, phase: 'Prep', energyLevel: 'low', cognitiveLoad: 'light' },
-    { title: 'Start the first small piece', durationMin: 5, phase: 'Work', energyLevel: 'medium', cognitiveLoad: 'light' },
-    { title: 'Keep going — next piece', durationMin: 5, phase: 'Work', energyLevel: 'medium', cognitiveLoad: 'light' },
-    { title: 'Almost there — finish strong', durationMin: 5, phase: 'Work', energyLevel: 'medium', cognitiveLoad: 'light' },
-    { title: 'Wrap up and put things away', durationMin: 2, phase: 'Finish', energyLevel: 'low', cognitiveLoad: 'mindless' },
+    { title: `Set up everything you need for: ${goal}`, durationMin: 5, phase: 'Prep', energyLevel: 'low', cognitiveLoad: 'light' },
+    { title: 'Start the first piece — just the very beginning', durationMin: 10, phase: 'Work', energyLevel: 'medium', cognitiveLoad: 'light' },
+    { title: 'Keep going — next small piece', durationMin: 10, phase: 'Work', energyLevel: 'medium', cognitiveLoad: 'light' },
+    { title: 'Final push — finish strong', durationMin: 10, phase: 'Work', energyLevel: 'medium', cognitiveLoad: 'light' },
+    { title: 'Wrap up and put everything away', durationMin: 5, phase: 'Finish', energyLevel: 'low', cognitiveLoad: 'mindless' },
   ]
 }
 

@@ -50,6 +50,7 @@ export default function ChatPage() {
         body: JSON.stringify({
           messages: history,
           apiKey: store.settings.anthropicApiKey || undefined,
+          userContext: store.settings.userContext || undefined,
         }),
       })
 

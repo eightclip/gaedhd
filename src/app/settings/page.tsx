@@ -1,20 +1,22 @@
 'use client'
 
 import { useState } from 'react'
-import { motion } from 'framer-motion'
-import { Key, User, Clock, Trash2, ChevronLeft, Check, ExternalLink } from 'lucide-react'
+import { Key, User, Clock, Trash2, ChevronLeft, Check, ExternalLink, Calendar, Plus, X, Sparkles } from 'lucide-react'
 import Link from 'next/link'
-import { useStore } from '@/lib/store'
+import { useStore, detectCalendarType } from '@/lib/store'
 
 export default function SettingsPage() {
   const store = useStore()
   const [showKey, setShowKey] = useState(false)
-  const [saved, setSaved] = useState(false)
   const [confirmReset, setConfirmReset] = useState(false)
+  const [calName, setCalName] = useState('')
+  const [calUrl, setCalUrl] = useState('')
 
-  const handleSave = () => {
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+  const handleAddCalendar = () => {
+    if (!calUrl.trim()) return
+    store.addCalendarSource(calName, calUrl)
+    setCalName('')
+    setCalUrl('')
   }
 
   const handleReset = () => {
@@ -28,9 +30,9 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="max-w-lg mx-auto px-5 pt-12 pb-8">
+    <div className="max-w-lg md:max-w-2xl mx-auto px-5 md:px-8 pt-12 pb-8">
       <div className="flex items-center gap-3 mb-6">
-        <Link href="/chat" className="p-2 rounded-full bg-muted-light hover:bg-foreground/10 transition-colors">
+        <Link href="/" className="md:hidden p-2 rounded-full bg-muted-light hover:bg-foreground/10 transition-colors">
           <ChevronLeft size={18} />
         </Link>
         <h1 className="font-display text-3xl font-bold">Settings</h1>
@@ -76,6 +78,105 @@ export default function SettingsPage() {
               Key saved (stored locally, never sent to our servers)
             </div>
           )}
+        </div>
+      </section>
+
+      {/* Calendars */}
+      <section className="mb-6">
+        <div className="flex items-center gap-2 mb-2">
+          <Calendar size={16} className="text-accent" />
+          <h2 className="font-bold text-sm">Calendars</h2>
+        </div>
+        <div className="bg-card border border-card-border rounded-2xl p-4">
+          <div className="text-xs text-muted mb-3 space-y-1.5">
+            <p>Add calendar feeds so GaeDHD can see your day and slot tasks into the gaps.</p>
+            <p className="font-semibold text-foreground">It must be the iCal feed, not a share link:</p>
+            <p>
+              <span className="font-semibold">Google:</span> open the calendar&apos;s Settings → scroll to
+              &ldquo;Integrate calendar&rdquo; → copy <span className="font-semibold">&ldquo;Secret address in iCal format&rdquo;</span>{' '}
+              (ends in <code className="bg-muted-light px-1 rounded">.ics</code>). The normal share/public link won&apos;t work.
+            </p>
+            <p>
+              <span className="font-semibold">Apple/iCloud:</span> share the calendar → Public Calendar → copy the
+              <span className="font-semibold"> webcal://</span> link.
+            </p>
+          </div>
+
+          {/* Existing calendars */}
+          {store.settings.calendarSources.length > 0 && (
+            <div className="space-y-2 mb-3">
+              {store.settings.calendarSources.map((cal) => (
+                <div key={cal.id} className="flex items-center gap-2.5 bg-muted-light rounded-xl px-3 py-2.5">
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: cal.color }} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold truncate">{cal.name}</p>
+                    <p className="text-[10px] text-muted truncate">{cal.url}</p>
+                  </div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted shrink-0">
+                    {cal.type === 'google' ? 'Google' : 'iCal'}
+                  </span>
+                  <button
+                    onClick={() => store.removeCalendarSource(cal.id)}
+                    className="p-1 text-muted hover:text-red-500 transition-colors shrink-0"
+                    aria-label="Remove calendar"
+                  >
+                    <X size={15} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Add new calendar */}
+          <div className="space-y-2">
+            <input
+              type="text"
+              value={calName}
+              onChange={(e) => setCalName(e.target.value)}
+              placeholder="Calendar name (e.g. Work, Family)"
+              className="w-full bg-muted-light rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 placeholder:text-muted"
+            />
+            <input
+              type="url"
+              value={calUrl}
+              onChange={(e) => setCalUrl(e.target.value)}
+              placeholder="Paste iCal / Google Calendar link"
+              className="w-full bg-muted-light rounded-xl px-4 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-accent/30 placeholder:text-muted"
+            />
+            {calUrl.trim() && (
+              <p className="text-[10px] text-muted px-1">
+                Detected: <span className="font-bold">{detectCalendarType(calUrl) === 'google' ? 'Google Calendar' : 'iCal feed'}</span>
+              </p>
+            )}
+            <button
+              onClick={handleAddCalendar}
+              disabled={!calUrl.trim()}
+              className="w-full py-2.5 bg-accent text-white rounded-xl text-sm font-bold disabled:opacity-40 hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+            >
+              <Plus size={16} />
+              Add calendar
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* Your Setup */}
+      <section className="mb-6">
+        <div className="flex items-center gap-2 mb-2">
+          <Sparkles size={16} className="text-accent" />
+          <h2 className="font-bold text-sm">Your setup</h2>
+        </div>
+        <div className="bg-card border border-card-border rounded-2xl p-4">
+          <p className="text-xs text-muted mb-3">
+            Tell GaeDHD about your space, equipment, and how you like to work. The AI uses this to
+            write steps that fit you, naming your actual gear and spots instead of generic advice.
+          </p>
+          <textarea
+            value={store.settings.userContext}
+            onChange={(e) => store.updateSettings({ userContext: e.target.value })}
+            placeholder="e.g. I have a kettlebell and a resistance band in my room. There's a couch in the office I can use for split squats. I like short workouts in the morning. Long instructions overwhelm me, so keep steps tiny."
+            className="w-full bg-muted-light rounded-xl px-4 py-3 text-sm resize-none h-32 focus:outline-none focus:ring-2 focus:ring-accent/30 placeholder:text-muted leading-relaxed"
+          />
         </div>
       </section>
 

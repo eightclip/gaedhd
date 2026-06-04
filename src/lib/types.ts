@@ -14,7 +14,17 @@ export type GoalCategory =
 
 export type EnergyLevel = 'low' | 'medium' | 'high'
 export type CognitiveLoad = 'mindless' | 'light' | 'deep'
-export type TaskContext = 'home' | 'office' | 'anywhere' | 'gym' | 'car'
+export type TaskContext =
+  | 'anywhere'
+  | 'home'
+  | 'office'
+  | 'studio'
+  | 'kitchen'
+  | 'bedroom'
+  | 'backyard'
+  | 'gym'
+  | 'car'
+  | 'errands'
 export type GapSize = 'micro' | 'small' | 'medium' | 'large'
 export type TaskStatus = 'pending' | 'scheduled' | 'active' | 'completed' | 'skipped'
 
@@ -104,6 +114,13 @@ export interface ParkingLotItem {
 export type TimelineItem =
   | { type: 'event'; data: CalendarEvent }
   | { type: 'gap'; data: ScheduleGap; scheduledTasks: ScheduledTask[] }
+
+// ─── Task + Goal pairing (for JustDoThisCard) ───────────────────
+export interface TaskWithGoal {
+  id: string
+  microTask: MicroTask
+  goal: Goal
+}
 
 // ─── User Stats ─────────────────────────────────────────────────
 export interface DailyStats {

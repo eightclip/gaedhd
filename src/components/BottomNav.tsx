@@ -15,8 +15,10 @@ const tabs = [
 export function BottomNav() {
   const pathname = usePathname()
 
+  if (pathname === '/login' || pathname.startsWith('/kiosk')) return null
+
   return (
-    <nav className="fixed bottom-0 inset-x-0 z-50 bg-[#1A1714] pb-safe">
+    <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-[#1A1714] pb-safe">
       <div className="flex items-center justify-around h-16 max-w-lg mx-auto px-4">
         {tabs.map((tab) => {
           const isActive = pathname === tab.href
