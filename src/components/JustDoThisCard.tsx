@@ -6,6 +6,8 @@ import { Check, SkipForward, Clock } from 'lucide-react'
 import type { TaskWithGoal } from '@/lib/types'
 import { categoryColors } from '@/lib/mock-data'
 import { ConfettiPop } from './ConfettiPop'
+import { Illo } from './Illo'
+import { SPARKLES, pickRandom } from '@/lib/illustrations'
 
 interface JustDoThisCardProps {
   tasks: TaskWithGoal[]
@@ -163,12 +165,12 @@ export function JustDoThisCard({ tasks, onComplete, onSkip }: JustDoThisCardProp
           >
             <div className="text-center text-white">
               <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
+                initial={{ scale: 0, rotate: -30 }}
+                animate={{ scale: 1, rotate: 0 }}
                 transition={{ type: 'spring', stiffness: 400, damping: 10 }}
-                className="text-6xl mb-2"
+                className="mb-2"
               >
-                ✓
+                <Illo src={pickRandom(SPARKLES)} className="h-20 w-auto mx-auto" />
               </motion.div>
               <p className="font-bold text-lg">Nice one!</p>
             </div>

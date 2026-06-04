@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { format } from 'date-fns'
+import { Illo } from '@/components/Illo'
+import { RITUAL_ILLO, ILLO } from '@/lib/illustrations'
 
 interface KioskEvent { id: string; title: string; startTime: string; endTime: string; color: string }
 interface KioskRitual { id: string; title: string; emoji: string; nudge: string; tint: string }
@@ -107,9 +109,12 @@ export default function KioskPage() {
               </p>
             </div>
           ) : (
-            <p className="font-display text-[4vw] font-bold leading-[1.05] text-foreground">
-              Go make something you love.
-            </p>
+            <div className="flex items-center gap-[2vw]">
+              <Illo src={ILLO.yourTime} className="h-[12vw] w-auto shrink-0" />
+              <p className="font-display text-[4vw] font-bold leading-[1.05] text-foreground">
+                Go make something you love.
+              </p>
+            </div>
           )}
         </div>
 
@@ -140,7 +145,9 @@ export default function KioskPage() {
           <p className="font-mono text-[1.1vw] uppercase tracking-widest text-muted">Rhythm</p>
           {ritual ? (
             <div>
-              <p className="text-[3.5vw] leading-none">{ritual.emoji}</p>
+              {RITUAL_ILLO[ritual.id]
+                ? <Illo src={RITUAL_ILLO[ritual.id]} className="h-[5vw] w-auto" />
+                : <p className="text-[3.5vw] leading-none">{ritual.emoji}</p>}
               <p className="font-display text-[2vw] font-bold leading-tight mt-[0.5vw]">{ritual.title}</p>
               <p className="font-mono text-[1.1vw] text-muted mt-[0.3vw]">{ritual.nudge}</p>
             </div>
