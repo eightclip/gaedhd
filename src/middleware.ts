@@ -23,8 +23,9 @@ export default auth((req) => {
 
 export const config = {
   matcher: [
-    // Protect everything except static files and public metadata routes
-    // (icons + OG images must stay public so browsers and social crawlers can fetch them)
-    '/((?!_next/static|_next/image|favicon.ico|icon|apple-icon|opengraph-image|twitter-image|manifest.json).*)',
+    // Protect everything except static files and public metadata routes.
+    // Image files (illustrations, avatar, icons, OG images) must stay public so the
+    // login screen and the token-only TV kiosk can load them without a session.
+    '/((?!_next/static|_next/image|favicon.ico|icon|apple-icon|opengraph-image|twitter-image|manifest.json|.*\\.(?:png|jpg|jpeg|svg|gif|webp|ico)$).*)',
   ],
 }
