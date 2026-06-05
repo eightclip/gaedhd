@@ -134,7 +134,7 @@ export default function GoalsPage() {
   return (
     <div className="max-w-lg md:max-w-3xl mx-auto px-5 md:px-8 pt-12">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="font-display text-3xl font-bold">Goals</h1>
+        <h1 className="font-display text-4xl font-bold tracking-tight">Your <span className="italic font-normal">goals</span></h1>
         <button
           onClick={() => setShowInput(true)}
           className="p-2.5 bg-accent text-white rounded-full hover:opacity-90 transition-opacity"

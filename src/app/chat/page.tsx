@@ -98,7 +98,7 @@ export default function ChatPage() {
       {/* Header */}
       <div className="flex items-center justify-between px-5 pt-12 pb-3">
         <div>
-          <h1 className="font-display text-2xl font-bold">Chat</h1>
+          <h1 className="font-display text-3xl font-bold tracking-tight">Chat</h1>
           <p className="text-xs text-muted">
             {hasApiKey ? '✨ AI powered' : 'Smart replies · add API key in Settings for full AI'}
           </p>

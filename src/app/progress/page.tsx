@@ -1,7 +1,7 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { Flame, Trophy, Clock, CheckCircle2 } from 'lucide-react'
+import { Trophy } from 'lucide-react'
 import { categoryColors } from '@/lib/mock-data'
 import { categoryIcon } from '@/lib/icons'
 import { ProgressRing } from '@/components/ProgressRing'
@@ -19,14 +19,14 @@ export default function ProgressPage() {
 
   return (
     <div className="max-w-lg md:max-w-2xl mx-auto px-5 md:px-8 pt-12">
-      <h1 className="font-display text-3xl font-bold mb-6">Progress</h1>
+      <h1 className="font-display text-4xl font-bold tracking-tight mb-6">Your <span className="italic font-normal">progress</span></h1>
 
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         className="flex flex-col items-center mb-8"
       >
-        <ProgressRing progress={overallProgress} size={160} strokeWidth={14} color="#C85D3E">
+        <ProgressRing progress={overallProgress} size={160} strokeWidth={14} color="var(--today-ink)">
           <div className="text-center">
             <p className="font-display text-4xl font-extrabold">{overallProgress}%</p>
             <p className="text-xs text-muted">overall</p>
@@ -34,44 +34,22 @@ export default function ProgressPage() {
         </ProgressRing>
       </motion.div>
 
-      <div className="grid grid-cols-3 gap-3 mb-8">
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="bg-accent-soft rounded-2xl p-4 text-center"
-        >
-          <Flame size={20} className="text-accent mx-auto mb-1" />
-          <p className="text-2xl font-extrabold">{store.streak}</p>
-          <p className="text-[10px] text-muted font-semibold uppercase">day streak</p>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="bg-success-soft rounded-2xl p-4 text-center"
-        >
-          <CheckCircle2 size={20} className="text-success mx-auto mb-1" />
-          <p className="text-2xl font-extrabold">{completedTasks}</p>
-          <p className="text-[10px] text-muted font-semibold uppercase">done</p>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="bg-muted-light rounded-2xl p-4 text-center"
-        >
-          <Clock size={20} className="text-muted mx-auto mb-1" />
-          <p className="text-2xl font-extrabold">{totalMinutes}m</p>
-          <p className="text-[10px] text-muted font-semibold uppercase">total</p>
-        </motion.div>
+      <div className="grid grid-cols-3 gap-3 mb-10">
+        <div className="rounded-[1.5rem] p-5 text-center" style={{ backgroundColor: 'var(--today-tint)' }}>
+          <p className="font-display text-4xl font-extrabold leading-none text-today-ink">{store.streak}</p>
+          <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mt-2">streak</p>
+        </div>
+        <div className="rounded-[1.5rem] p-5 text-center bg-success-soft">
+          <p className="font-display text-4xl font-extrabold leading-none text-success">{completedTasks}</p>
+          <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mt-2">done</p>
+        </div>
+        <div className="rounded-[1.5rem] p-5 text-center bg-muted-light">
+          <p className="font-display text-4xl font-extrabold leading-none">{totalMinutes}<span className="text-xl">m</span></p>
+          <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mt-2">focused</p>
+        </div>
       </div>
 
-      <p className="text-xs font-bold uppercase tracking-widest text-muted mb-3">
-        Goal Breakdown
-      </p>
+      <h2 className="font-display text-2xl font-bold tracking-tight mb-4">Goal <span className="italic font-normal">breakdown</span></h2>
 
       {store.goals.length === 0 && (
         <div className="text-center py-12 text-muted">
