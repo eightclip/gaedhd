@@ -79,6 +79,11 @@ export default function KioskPage() {
 
   return (
     <div className="min-h-screen w-full p-[3vw] flex flex-col gap-[2vw]">
+      {/* Brand */}
+      <div className="flex items-center gap-[1vw]">
+        <Illo src="/avatar.png" alt="" className="h-[4vw] w-auto rounded-[1vw]" />
+        <span className="font-display text-[1.6vw] font-bold">GaeDHD</span>
+      </div>
       {/* Hero: date + clock */}
       <div className="flex items-end justify-between">
         <div>

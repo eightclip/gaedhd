@@ -36,7 +36,7 @@ export interface RitualStatus {
 // Her starting set. Editable later in Settings; this seeds a new account.
 export const DEFAULT_RITUALS: Ritual[] = [
   { id: 'pills-am', title: 'Morning meds', emoji: '💊', nudge: 'Take your morning meds with water.', cadence: { kind: 'dailyAt', hour: 8 }, tint: 'rose', context: 'home', window: { startHour: 7, endHour: 12 } },
-  { id: 'water', title: 'Sip water', emoji: '💧', nudge: 'Have a few sips of water.', cadence: { kind: 'everyHours', hours: 2 }, tint: 'sky', window: { startHour: 7, endHour: 21 } },
+  { id: 'water', title: 'Water', emoji: '💧', nudge: 'Finish a Stanley cup and refill.', cadence: { kind: 'timesPerDay', times: 4 }, tint: 'sky', window: { startHour: 7, endHour: 21 } },
   { id: 'protein', title: 'Protein', emoji: '🍳', nudge: 'Get some protein in.', cadence: { kind: 'timesPerDay', times: 3 }, tint: 'gold', window: { startHour: 8, endHour: 20 } },
   { id: 'move', title: 'Move a little', emoji: '🚶‍♀️', nudge: 'Stand up, walk a lap, shake it out.', cadence: { kind: 'everyHours', hours: 3 }, tint: 'sage', window: { startHour: 9, endHour: 18 } },
   { id: 'outside', title: 'Step outside', emoji: '🌿', nudge: 'Go outside for a minute. Real light, real air.', cadence: { kind: 'timesPerDay', times: 2 }, tint: 'sage', context: 'home', window: { startHour: 9, endHour: 18 } },
@@ -60,9 +60,12 @@ function dayIndex(d: Date): number {
 // look at today.
 export function ritualStatus(ritual: Ritual, completions: string[], now = new Date()): RitualStatus {
   const today = startOfToday(now)
+  // Note: do NOT clamp to `now`. `now` ticks once a minute, so a fresh tap is a
+  // few seconds ahead of it; clamping would hide the completion until the next
+  // tick. Completions are always real (past) events, so today-start is enough.
   const todays = completions
     .map(c => new Date(c))
-    .filter(d => d >= today && d <= now)
+    .filter(d => d >= today)
     .sort((a, b) => a.getTime() - b.getTime())
 
   const completedToday = todays.length
@@ -103,7 +106,7 @@ export function ritualStatus(ritual: Ritual, completions: string[], now = new Da
       // Look across all history, not just today.
       const all = completions
         .map(c => new Date(c))
-        .filter(d => d <= now)
+        .filter(d => !isNaN(d.getTime()))
         .sort((a, b) => a.getTime() - b.getTime())
       const lastEver = all[all.length - 1] ?? null
       if (!lastEver) {

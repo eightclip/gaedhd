@@ -11,6 +11,7 @@ import { TimelineGap } from './TimelineGap'
 import { RhythmStrip } from './RhythmStrip'
 import { PresenceBar } from './PresenceBar'
 import { MeetingCopilot } from './MeetingCopilot'
+import { WaterTracker } from './WaterTracker'
 import { CaptureSheet } from './CaptureSheet'
 import { Illo } from './Illo'
 import { ILLO, DONE_ILLOS, pickDaily } from '@/lib/illustrations'
@@ -184,6 +185,15 @@ export function TodayView() {
     <MeetingCopilot events={events} now={now} asyncMeetings={store.asyncMeetings} onToggleAsync={store.toggleAsyncMeeting} />
   )
 
+  const water = (
+    <WaterTracker
+      log={store.ritualLog['water'] ?? []}
+      now={now}
+      onRefill={() => store.completeRitual('water')}
+      onUndo={() => store.undoRitual('water')}
+    />
+  )
+
   const justDoThis = (
     <>
       {topTasks.length > 0 && (
@@ -321,6 +331,7 @@ export function TodayView() {
     <div className="hidden md:grid md:grid-cols-[1fr_340px] md:gap-10 md:p-10 md:max-w-6xl">
       <div>
         {header({ day: 'text-7xl', num: 'text-[9rem]', month: 'text-2xl' })}
+        {water}
         {meetingCopilot}
         {justDoThis}
         {rhythm}
@@ -337,7 +348,12 @@ export function TodayView() {
   // ── Mobile ──
   const mobile = (
     <div className="md:hidden max-w-lg mx-auto px-5 pt-12">
+      <div className="flex items-center gap-2 mb-6">
+        <Illo src="/avatar.png" alt="" className="w-8 h-8 rounded-lg" />
+        <span className="font-display text-base font-bold">GaeDHD</span>
+      </div>
       {header({ day: 'text-6xl', num: 'text-[7rem]', month: 'text-xl' })}
+      {water}
       {meetingCopilot}
       {justDoThis}
       {rhythm}
