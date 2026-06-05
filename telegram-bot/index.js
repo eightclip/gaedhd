@@ -47,6 +47,12 @@ const NUDGE_CHAT_ID = process.env.NUDGE_CHAT_ID;
 const QUIET_START = parseInt(process.env.QUIET_START ?? "21", 10);
 const QUIET_END = parseInt(process.env.QUIET_END ?? "8", 10);
 
+// Morning planning prompt: a daily "what are you trying to do today?" message.
+// Fires once per day at MORNING_HOUR. Her reply is captured like any text (into her inbox).
+const MORNING_PROMPT_ENABLED = process.env.MORNING_PROMPT_ENABLED === "true";
+const MORNING_HOUR = parseInt(process.env.MORNING_HOUR ?? "9", 10);
+const MORNING_CHAT_ID = process.env.MORNING_CHAT_ID || process.env.NUDGE_CHAT_ID;
+
 // Parse the allowlist once at startup
 const ALLOWED_CHAT_IDS = new Set(
   (process.env.ALLOWED_CHAT_IDS || "")
@@ -327,6 +333,37 @@ if (NUDGES_ENABLED) {
         console.error("[nudge] sendMessage error:", err.message);
       }
     }, NUDGE_INTERVAL_MS);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Morning planning prompt — once a day, around school-dropoff o'clock
+// ---------------------------------------------------------------------------
+const MORNING_TEXT = [
+  "Good morning. What are you trying to take care of today?",
+  "",
+  "Just type it back to me — the big things and the little things. I'll drop them",
+  "in your list and the app will build your day around your meetings and the school runs.",
+].join("\n");
+
+if (MORNING_PROMPT_ENABLED) {
+  if (!MORNING_CHAT_ID) {
+    console.warn("[morning] MORNING_PROMPT_ENABLED=true but no MORNING_CHAT_ID/NUDGE_CHAT_ID set.");
+  } else {
+    let lastMorningDay = null; // YYYY-M-D we last prompted
+    console.log(`[morning] Morning prompt active at ${MORNING_HOUR}:00.`);
+    setInterval(async () => {
+      const d = new Date();
+      const dayKey = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      if (d.getHours() !== MORNING_HOUR || lastMorningDay === dayKey) return;
+      lastMorningDay = dayKey;
+      try {
+        await bot.api.sendMessage(MORNING_CHAT_ID, MORNING_TEXT);
+        console.log(`[morning] Sent planning prompt to chat ${MORNING_CHAT_ID}`);
+      } catch (err) {
+        console.error("[morning] sendMessage error:", err.message);
+      }
+    }, 10 * 60 * 1000); // check every 10 minutes
   }
 }
 
