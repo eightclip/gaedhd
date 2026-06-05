@@ -118,6 +118,19 @@ export interface FixedBlock {
   color: string
 }
 
+// ─── Important dates ────────────────────────────────────────────
+// Annual dates she should never miss: birthdays, anniversaries. Surface a
+// heads-up as they approach and a celebration on the day.
+export interface ImportantDate {
+  id: string
+  label: string
+  month: number // 1-12
+  day: number // 1-31
+  year?: number // origin year, to show "turns N"
+  kind: 'birthday' | 'anniversary' | 'date'
+  leadDays?: number // if set, queue a gift-prep goal this many days before (0/undefined = celebrate only)
+}
+
 // ─── Parking Lot ────────────────────────────────────────────────
 export interface ParkingLotItem {
   id: string

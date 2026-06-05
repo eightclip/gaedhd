@@ -214,6 +214,57 @@ export default function SettingsPage() {
         </div>
       </section>
 
+      {/* Important dates */}
+      <section className="mb-6">
+        <div className="flex items-center gap-2 mb-2">
+          <Calendar size={16} className="text-accent" />
+          <h2 className="font-bold text-sm">Important dates</h2>
+        </div>
+        <div className="bg-card border border-card-border rounded-2xl p-4">
+          <p className="text-xs text-muted mb-3">
+            Birthdays and anniversaries. She gets a heads-up as they near, and the ones marked
+            for prep drop a gift task into her list a few days early. Add the family here.
+          </p>
+          <div className="space-y-2">
+            {store.settings.importantDates.map(d => (
+              <div key={d.id} className="bg-muted-light rounded-xl p-3 flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    value={d.label}
+                    onChange={e => store.updateImportantDate(d.id, { label: e.target.value })}
+                    className="flex-1 min-w-0 bg-card rounded-lg px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-accent/30"
+                  />
+                  <input
+                    type="date"
+                    value={`${String(d.year ?? 2000).padStart(4, '0')}-${String(d.month).padStart(2, '0')}-${String(d.day).padStart(2, '0')}`}
+                    onChange={e => { const [y, m, da] = e.target.value.split('-').map(Number); store.updateImportantDate(d.id, { year: y, month: m, day: da }) }}
+                    className="bg-card rounded-lg px-2 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-accent/30"
+                  />
+                  <button onClick={() => store.removeImportantDate(d.id)} className="p-1.5 text-muted hover:text-red-500 transition-colors shrink-0" aria-label="Remove date">
+                    <X size={15} />
+                  </button>
+                </div>
+                <label className="flex items-center gap-2 text-xs text-muted cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={!!d.leadDays}
+                    onChange={e => store.updateImportantDate(d.id, { leadDays: e.target.checked ? 5 : 0 })}
+                    className="accent-accent"
+                  />
+                  Queue a gift task 5 days before
+                </label>
+              </div>
+            ))}
+          </div>
+          <button
+            onClick={() => store.addImportantDate({ id: `date-${Date.now()}`, label: 'New person', month: 1, day: 1, kind: 'birthday', leadDays: 5 })}
+            className="w-full mt-3 py-2.5 bg-accent text-white rounded-xl text-sm font-bold hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+          >
+            <Plus size={16} /> Add date
+          </button>
+        </div>
+      </section>
+
       {/* Your Setup */}
       <section className="mb-6">
         <div className="flex items-center gap-2 mb-2">

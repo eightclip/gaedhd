@@ -12,6 +12,7 @@ import { RhythmStrip } from './RhythmStrip'
 import { PresenceBar } from './PresenceBar'
 import { MeetingCopilot } from './MeetingCopilot'
 import { WaterTracker } from './WaterTracker'
+import { ImportantDates } from './ImportantDates'
 import { BreakCard } from './BreakCard'
 import { GymPicker } from './GymPicker'
 import { CaptureSheet } from './CaptureSheet'
@@ -104,6 +105,11 @@ export function TodayView() {
     setInbox(prev => prev.filter(i => i.id !== id))
     fetch(`/api/inbox?id=${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {})
   }
+
+  // Once her data is loaded, queue any gift-prep that's within its lead window.
+  useEffect(() => {
+    if (store.loaded) store.queueBirthdayPrep(new Date())
+  }, [store.loaded, store.queueBirthdayPrep])
 
   const nextActions = currentNextActions(store.goals, store.microTasks)
   const topTasks = nextActions.slice(0, 5)
@@ -207,6 +213,8 @@ export function TodayView() {
   const gymPicker = (
     <GymPicker events={conflictEvents} now={now} currentGym={currentGym} onPick={store.setGymSlot} onClear={store.clearGym} />
   )
+
+  const datesCard = <ImportantDates dates={store.settings.importantDates} now={now} />
 
   const water = (
     <WaterTracker
@@ -376,6 +384,7 @@ export function TodayView() {
     <div className="hidden md:grid md:grid-cols-[1fr_340px] md:gap-10 md:p-10 md:max-w-6xl">
       <div>
         {header({ day: 'text-7xl', num: 'text-[9rem]', month: 'text-2xl' })}
+        {datesCard}
         {meetingCopilot}
         {justDoThis}
         {rhythm}
@@ -399,6 +408,7 @@ export function TodayView() {
         <span className="font-display text-base font-bold">GaeDHD</span>
       </div>
       {header({ day: 'text-6xl', num: 'text-[7rem]', month: 'text-xl' })}
+      {datesCard}
       <div className="mb-10">{water}</div>
       {meetingCopilot}
       {justDoThis}

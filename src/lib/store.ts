@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import type { Goal, MicroTask, ParkingLotItem, FixedBlock } from './types'
+import type { Goal, MicroTask, ParkingLotItem, FixedBlock, ImportantDate } from './types'
 import type { Ritual } from './rituals'
 import { DEFAULT_RITUALS } from './rituals'
 import { goals as mockGoals, microTasks as mockTasks, parkingLotItems as mockParking } from './mock-data'
@@ -39,6 +39,7 @@ export interface AppSettings {
   calendarSources: CalendarSource[]
   userContext: string // her equipment, spaces, preferences — fed to the AI breakdown
   fixedBlocks: FixedBlock[] // her real anchors (school runs, gym) that shape the day
+  importantDates: ImportantDate[] // birthdays, anniversaries to never miss
 }
 
 const CALENDAR_COLORS = ['#C85D3E', '#7B9E6B', '#9B7EC8', '#6BA3BE', '#D4845E', '#C87E9E']
@@ -59,6 +60,8 @@ export interface AppState {
   ritualLog: Record<string, string[]>
   // Meeting titles she's flagged as "this could be async (Slack/email)".
   asyncMeetings: string[]
+  // Per important-date occurrence (`${id}-${year}`): 'queued' once its gift-prep was added.
+  importantDateLog: Record<string, string>
   streak: number
   tasksCompletedToday: number
 }
@@ -74,6 +77,12 @@ const DEFAULT_SETTINGS: AppSettings = {
   fixedBlocks: [
     { id: 'school-drop', title: 'Take kids to school', emoji: '🏫', startHour: 8, startMin: 0, durationMin: 30, travelMin: 0, days: [1, 2, 3, 4, 5], color: '#C87E9E' },
     { id: 'school-pickup', title: 'Pick up kids', emoji: '🏫', startHour: 15, startMin: 0, durationMin: 30, travelMin: 0, days: [1, 2, 3, 4, 5], color: '#C87E9E' },
+  ],
+  importantDates: [
+    { id: 'bday-her', label: 'Your birthday', month: 6, day: 6, year: 1982, kind: 'birthday' },
+    { id: 'anniversary', label: 'Wedding anniversary', month: 10, day: 9, year: 2010, kind: 'anniversary', leadDays: 7 },
+    { id: 'kid-2013', label: "Older kiddo's birthday", month: 6, day: 29, year: 2013, kind: 'birthday', leadDays: 5 },
+    { id: 'kid-2015', label: "Younger kiddo's birthday", month: 5, day: 20, year: 2015, kind: 'birthday', leadDays: 5 },
   ],
 }
 
@@ -93,6 +102,7 @@ const INITIAL_STATE: AppState = {
   rituals: DEFAULT_RITUALS,
   ritualLog: {},
   asyncMeetings: [],
+  importantDateLog: {},
   streak: 5,
   tasksCompletedToday: 3,
 }
@@ -110,6 +120,7 @@ function mergeState(parsed: Partial<AppState> | null | undefined): AppState {
     rituals: parsed.rituals && parsed.rituals.length ? parsed.rituals : DEFAULT_RITUALS,
     ritualLog: parsed.ritualLog ?? {},
     asyncMeetings: parsed.asyncMeetings ?? [],
+    importantDateLog: parsed.importantDateLog ?? {},
   }
 }
 
@@ -385,6 +396,45 @@ export function useStore() {
     setState(prev => ({ ...prev, settings: { ...prev.settings, fixedBlocks: prev.settings.fixedBlocks.filter(b => b.id !== id) } }))
   }, [])
 
+  const addImportantDate = useCallback((d: ImportantDate) => {
+    setState(prev => ({ ...prev, settings: { ...prev.settings, importantDates: [...prev.settings.importantDates, d] } }))
+  }, [])
+
+  const updateImportantDate = useCallback((id: string, updates: Partial<ImportantDate>) => {
+    setState(prev => ({ ...prev, settings: { ...prev.settings, importantDates: prev.settings.importantDates.map(d => d.id === id ? { ...d, ...updates } : d) } }))
+  }, [])
+
+  const removeImportantDate = useCallback((id: string) => {
+    setState(prev => ({ ...prev, settings: { ...prev.settings, importantDates: prev.settings.importantDates.filter(d => d.id !== id) } }))
+  }, [])
+
+  // Idempotent: for any important date within its lead window whose prep isn't queued
+  // yet, drop a gift-prep goal into her list and log the occurrence so it's once a year.
+  const queueBirthdayPrep = useCallback((now: Date = new Date()) => {
+    setState(prev => {
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      const log = { ...prev.importantDateLog }
+      const newGoals: Goal[] = []
+      const newTasks: MicroTask[] = []
+      for (const d of prev.settings.importantDates) {
+        if (!d.leadDays || d.leadDays <= 0) continue
+        let next = new Date(now.getFullYear(), d.month - 1, d.day)
+        if (next < today) next = new Date(now.getFullYear() + 1, d.month - 1, d.day)
+        const daysUntil = Math.round((next.getTime() - today.getTime()) / 86_400_000)
+        const key = `${d.id}-${next.getFullYear()}`
+        if (daysUntil > d.leadDays || log[key]) continue
+        const goalId = `goal-${key}`
+        const what = d.kind === 'anniversary' ? 'anniversary' : 'birthday'
+        newGoals.push({ id: goalId, title: `${d.label} ${what} gift`, description: '', category: 'errands', lifeArea: 'family', priority: 4, progressPct: 0, createdAt: new Date().toISOString(), emoji: '' })
+        const steps = [`Think of a gift idea for ${d.label}`, 'Order or buy the gift', 'Get a card', 'Wrap it and set it aside']
+        steps.forEach((t, i) => newTasks.push({ id: `${goalId}-mt${i}`, goalId, title: t, durationMin: i === 1 ? 15 : 8, energyLevel: 'low', context: 'anywhere', cognitiveLoad: 'light', toolsNeeded: [], phase: 'Gift', sequenceOrder: i + 1, status: 'pending' }))
+        log[key] = 'queued'
+      }
+      if (newGoals.length === 0) return prev
+      return { ...prev, goals: [...newGoals, ...prev.goals], microTasks: [...newTasks, ...prev.microTasks], importantDateLog: log }
+    })
+  }, [])
+
   const completeRitual = useCallback((ritualId: string) => {
     setState(prev => ({
       ...prev,
@@ -445,6 +495,10 @@ export function useStore() {
     addFixedBlock,
     updateFixedBlock,
     removeFixedBlock,
+    addImportantDate,
+    updateImportantDate,
+    removeImportantDate,
+    queueBirthdayPrep,
     completeRitual,
     undoRitual,
     updateRituals,
