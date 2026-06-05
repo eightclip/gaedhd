@@ -7,6 +7,17 @@ import { useStore, detectCalendarType } from '@/lib/store'
 import { TINTS, type TintName } from '@/lib/theme'
 import type { RitualCadence } from '@/lib/rituals'
 
+// Render an hour-or-half-hour value (e.g. 6.5) as "6:30 AM".
+function fmtHour(h: number) {
+  const hh = Math.floor(h)
+  const mm = h % 1 ? '30' : '00'
+  const period = hh >= 12 ? 'PM' : 'AM'
+  const disp = hh % 12 === 0 ? 12 : hh % 12
+  return `${disp}:${mm} ${period}`
+}
+const WAKE_OPTIONS = Array.from({ length: 13 }, (_, i) => 5 + i * 0.5) // 5:00–11:00
+const SLEEP_OPTIONS = Array.from({ length: 8 }, (_, i) => 20 + i * 0.5) // 8:00pm–11:30pm
+
 export default function SettingsPage() {
   const store = useStore()
   const [showKey, setShowKey] = useState(false)
@@ -389,13 +400,11 @@ export default function SettingsPage() {
               </label>
               <select
                 value={store.settings.wakeHour}
-                onChange={(e) => store.updateSettings({ wakeHour: parseInt(e.target.value) })}
+                onChange={(e) => store.updateSettings({ wakeHour: parseFloat(e.target.value) })}
                 className="w-full bg-muted-light rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 appearance-none"
               >
-                {Array.from({ length: 12 }, (_, i) => i + 5).map(h => (
-                  <option key={h} value={h}>
-                    {h > 12 ? h - 12 : h}:00 {h >= 12 ? 'PM' : 'AM'}
-                  </option>
+                {WAKE_OPTIONS.map(h => (
+                  <option key={h} value={h}>{fmtHour(h)}</option>
                 ))}
               </select>
             </div>
@@ -406,13 +415,11 @@ export default function SettingsPage() {
               </label>
               <select
                 value={store.settings.sleepHour}
-                onChange={(e) => store.updateSettings({ sleepHour: parseInt(e.target.value) })}
+                onChange={(e) => store.updateSettings({ sleepHour: parseFloat(e.target.value) })}
                 className="w-full bg-muted-light rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 appearance-none"
               >
-                {Array.from({ length: 8 }, (_, i) => i + 19).map(h => (
-                  <option key={h} value={h}>
-                    {h > 12 ? h - 12 : h}:00 {h >= 12 ? 'PM' : 'AM'}
-                  </option>
+                {SLEEP_OPTIONS.map(h => (
+                  <option key={h} value={h}>{fmtHour(h)}</option>
                 ))}
               </select>
             </div>

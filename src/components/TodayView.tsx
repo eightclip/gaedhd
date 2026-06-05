@@ -122,8 +122,11 @@ export function TodayView() {
   // Gym conflicts check against meetings + other anchors, not the gym's own blocks.
   const conflictEvents = [...events, ...fixedEvents.filter(e => !e.id.startsWith(gymId))]
 
-  const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), store.settings.wakeHour, 0, 0)
-  const dayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), store.settings.sleepHour, 0, 0)
+  // wake/sleep can be half-hours (e.g. 6.5 = 6:30am), so split into hours + minutes.
+  const wh = Math.floor(store.settings.wakeHour), wm = Math.round((store.settings.wakeHour % 1) * 60)
+  const sh = Math.floor(store.settings.sleepHour), sm = Math.round((store.settings.sleepHour % 1) * 60)
+  const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), wh, wm, 0)
+  const dayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), sh, sm, 0)
   const gaps = computeGaps(allEvents, dayStart, dayEnd)
   const scheduled = slotTasks(gaps, nextActions, now, store.settings.transitionBufferMin)
 
