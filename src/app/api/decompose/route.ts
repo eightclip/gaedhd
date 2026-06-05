@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
   })
 }
 
-function generateMockDecomposition(goal: string, category: string) {
+function generateMockDecomposition(goal: string, _category: string) {
   const goalLower = goal.toLowerCase()
 
   // Projects that depend on other people or appointments: the next action is the call,
