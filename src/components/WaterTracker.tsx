@@ -51,7 +51,7 @@ export function WaterTracker({ log, now, onRefill, onUndo }: WaterTrackerProps) 
 
       {won ? (
         <div className="flex items-center justify-between">
-          <span className="font-display text-sm font-bold" style={{ color: sky.ink }}>Hydration win 💧</span>
+          <span className="font-display text-sm font-bold" style={{ color: sky.ink }}>Hydration win</span>
           <button onClick={onUndo} className="p-1 text-muted hover:text-foreground transition-colors" aria-label="Undo"><Undo2 size={14} /></button>
         </div>
       ) : (

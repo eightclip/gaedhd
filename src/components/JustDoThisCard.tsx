@@ -8,6 +8,7 @@ import { categoryColors } from '@/lib/mock-data'
 import { ConfettiPop } from './ConfettiPop'
 import { Illo } from './Illo'
 import { SPARKLES, pickRandom } from '@/lib/illustrations'
+import { categoryIcon } from '@/lib/icons'
 
 interface JustDoThisCardProps {
   tasks: TaskWithGoal[]
@@ -87,6 +88,7 @@ export function JustDoThisCard({ tasks, onComplete, onSkip }: JustDoThisCardProp
   if (!currentTask) return null
 
   const color = categoryColors[currentTask.goal.category] || '#8B6F5E'
+  const GoalIcon = categoryIcon(currentTask.goal.category)
 
   return (
     <div className="relative">
@@ -113,8 +115,8 @@ export function JustDoThisCard({ tasks, onComplete, onSkip }: JustDoThisCardProp
 
           <div className="p-6 pt-8 text-white min-h-[220px] flex flex-col">
             <div className="flex items-center justify-between mb-4">
-              <span className="text-sm font-semibold opacity-80 uppercase tracking-wider">
-                {currentTask.goal.emoji} {currentTask.goal.title}
+              <span className="flex items-center gap-1.5 text-sm font-semibold opacity-80 uppercase tracking-wider">
+                <GoalIcon size={14} /> {currentTask.goal.title}
               </span>
               <span className="text-xs opacity-60 bg-white/10 px-2.5 py-1 rounded-full">
                 {currentTask.microTask.phase}

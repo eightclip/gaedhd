@@ -39,7 +39,7 @@ export function BreakCard({ label, mins, promptWater, onRefill, onDone }: BreakC
 
       {promptWater && (
         refilled ? (
-          <p className="font-display text-lg font-bold text-today-ink mb-4">Nice, water topped up 💧</p>
+          <p className="font-display text-lg font-bold text-today-ink mb-4">Nice, water topped up</p>
         ) : (
           <motion.button
             onClick={refill}

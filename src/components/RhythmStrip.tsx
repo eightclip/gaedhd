@@ -1,11 +1,12 @@
 'use client'
 
 import { motion, AnimatePresence } from 'framer-motion'
-import { Check } from 'lucide-react'
+import { Check, Sparkles } from 'lucide-react'
 import type { Ritual } from '@/lib/rituals'
 import { rankRituals } from '@/lib/rituals'
 import { TINTS } from '@/lib/theme'
 import { RITUAL_ILLO } from '@/lib/illustrations'
+import { RITUAL_ICON } from '@/lib/icons'
 import { Illo } from './Illo'
 
 interface RhythmStripProps {
@@ -39,6 +40,7 @@ export function RhythmStrip({ rituals, ritualLog, now, onComplete, onUndo, hideP
           {due.map(s => {
             const { tint, ink } = TINTS[s.ritual.tint]
             const times = s.ritual.cadence.kind === 'timesPerDay' ? s.ritual.cadence.times : 0
+            const Fallback = RITUAL_ICON[s.ritual.id] || Sparkles
             return (
               <motion.button
                 key={s.ritual.id}
@@ -54,7 +56,7 @@ export function RhythmStrip({ rituals, ritualLog, now, onComplete, onUndo, hideP
                 <div className="flex items-start justify-between">
                   {RITUAL_ILLO[s.ritual.id]
                     ? <Illo src={RITUAL_ILLO[s.ritual.id]} className="h-12 w-auto" />
-                    : <span className="text-4xl leading-none">{s.ritual.emoji}</span>}
+                    : <Fallback size={36} style={{ color: ink }} />}
                   {times > 1 && (
                     <span className="font-mono text-xs font-bold" style={{ color: ink }}>
                       {s.completedToday}/{times}

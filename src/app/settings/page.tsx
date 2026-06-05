@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Key, User, Clock, Trash2, ChevronLeft, Check, ExternalLink, Calendar, Plus, X, Sparkles } from 'lucide-react'
+import { Key, User, Clock, Trash2, ChevronLeft, Check, ExternalLink, Calendar, Plus, X, Sparkles, MapPin } from 'lucide-react'
 import Link from 'next/link'
 import { useStore, detectCalendarType } from '@/lib/store'
 
@@ -160,6 +160,60 @@ export default function SettingsPage() {
         </div>
       </section>
 
+      {/* Daily anchors */}
+      <section className="mb-6">
+        <div className="flex items-center gap-2 mb-2">
+          <MapPin size={16} className="text-accent" />
+          <h2 className="font-bold text-sm">Daily anchors</h2>
+        </div>
+        <div className="bg-card border border-card-border rounded-2xl p-4">
+          <p className="text-xs text-muted mb-3">
+            Fixed points in her day, like the school runs. Everything movable schedules around
+            these. Set the time and the days each repeats.
+          </p>
+          <div className="space-y-3">
+            {store.settings.fixedBlocks.filter(b => !b.date).map(b => (
+              <div key={b.id} className="bg-muted-light rounded-xl p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <input
+                    value={b.title}
+                    onChange={e => store.updateFixedBlock(b.id, { title: e.target.value })}
+                    className="flex-1 min-w-0 bg-card rounded-lg px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-accent/30"
+                  />
+                  <input
+                    type="time"
+                    value={`${String(b.startHour).padStart(2, '0')}:${String(b.startMin).padStart(2, '0')}`}
+                    onChange={e => { const [h, m] = e.target.value.split(':').map(Number); store.updateFixedBlock(b.id, { startHour: h || 0, startMin: m || 0 }) }}
+                    className="bg-card rounded-lg px-2 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-accent/30"
+                  />
+                  <button onClick={() => store.removeFixedBlock(b.id)} className="p-1.5 text-muted hover:text-red-500 transition-colors shrink-0" aria-label="Remove anchor">
+                    <X size={15} />
+                  </button>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => store.updateFixedBlock(b.id, { days: b.days.includes(idx) ? b.days.filter(x => x !== idx) : [...b.days, idx].sort((a, z) => a - z) })}
+                      className={`w-7 h-7 rounded-full text-[11px] font-bold transition-colors ${b.days.includes(idx) ? 'bg-foreground text-background' : 'bg-card text-muted hover:bg-foreground/10'}`}
+                    >
+                      {d}
+                    </button>
+                  ))}
+                  <span className="ml-auto font-mono text-[10px] text-muted">{b.durationMin}m</span>
+                </div>
+              </div>
+            ))}
+          </div>
+          <button
+            onClick={() => store.addFixedBlock({ id: `anchor-${Date.now()}`, title: 'New anchor', emoji: '', startHour: 9, startMin: 0, durationMin: 30, travelMin: 0, days: [1, 2, 3, 4, 5], color: '#9B7EC8' })}
+            className="w-full mt-3 py-2.5 bg-accent text-white rounded-xl text-sm font-bold hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+          >
+            <Plus size={16} /> Add anchor
+          </button>
+        </div>
+      </section>
+
       {/* Your Setup */}
       <section className="mb-6">
         <div className="flex items-center gap-2 mb-2">
@@ -269,11 +323,11 @@ export default function SettingsPage() {
             All data is stored locally in your browser. Nothing is sent to any server
             (except chat messages to the Claude API if you add a key).
           </p>
-          <div className="text-xs text-muted mb-3 space-y-1">
-            <p>📋 {store.goals.length} goals</p>
-            <p>✅ {store.microTasks.filter(t => t.status === 'completed').length}/{store.microTasks.length} micro-tasks</p>
-            <p>💬 {store.chatMessages.length} chat messages</p>
-            <p>📝 {store.parkingLot.length} parking lot items</p>
+          <div className="text-xs text-muted mb-3 space-y-1 font-mono">
+            <p>{store.goals.length} goals</p>
+            <p>{store.microTasks.filter(t => t.status === 'completed').length}/{store.microTasks.length} micro-tasks</p>
+            <p>{store.chatMessages.length} chat messages</p>
+            <p>{store.parkingLot.length} parking lot items</p>
           </div>
           <button
             onClick={handleReset}
@@ -290,7 +344,7 @@ export default function SettingsPage() {
 
       {/* Version */}
       <p className="text-center text-xs text-muted mt-8">
-        GaeDHD v0.1.0 · Made with 💛 for ADHD brains
+        GaeDHD v0.1.0 · Made for ADHD brains
       </p>
     </div>
   )

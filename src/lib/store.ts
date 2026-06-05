@@ -370,6 +370,21 @@ export function useStore() {
     })
   }, [])
 
+  const addFixedBlock = useCallback((block: FixedBlock) => {
+    setState(prev => ({ ...prev, settings: { ...prev.settings, fixedBlocks: [...prev.settings.fixedBlocks, block] } }))
+  }, [])
+
+  const updateFixedBlock = useCallback((id: string, updates: Partial<FixedBlock>) => {
+    setState(prev => ({
+      ...prev,
+      settings: { ...prev.settings, fixedBlocks: prev.settings.fixedBlocks.map(b => b.id === id ? { ...b, ...updates } : b) },
+    }))
+  }, [])
+
+  const removeFixedBlock = useCallback((id: string) => {
+    setState(prev => ({ ...prev, settings: { ...prev.settings, fixedBlocks: prev.settings.fixedBlocks.filter(b => b.id !== id) } }))
+  }, [])
+
   const completeRitual = useCallback((ritualId: string) => {
     setState(prev => ({
       ...prev,
@@ -427,6 +442,9 @@ export function useStore() {
     removeCalendarSource,
     setGymSlot,
     clearGym,
+    addFixedBlock,
+    updateFixedBlock,
+    removeFixedBlock,
     completeRitual,
     undoRitual,
     updateRituals,

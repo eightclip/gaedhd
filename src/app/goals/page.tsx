@@ -4,6 +4,9 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, Sparkles, X, Pencil, Trash2, Check } from 'lucide-react'
 import { categoryColors } from '@/lib/mock-data'
+import { categoryIcon } from '@/lib/icons'
+import { Illo } from '@/components/Illo'
+import { ILLO } from '@/lib/illustrations'
 import { ProgressRing } from '@/components/ProgressRing'
 import { useStore } from '@/lib/store'
 import type { GoalCategory, LifeArea, Goal, MicroTask } from '@/lib/types'
@@ -179,7 +182,7 @@ export default function GoalsPage() {
                     }`}
                     style={selectedCategory === cat.value ? { backgroundColor: categoryColors[cat.value] } : {}}
                   >
-                    {cat.emoji} {cat.label}
+                    {cat.label}
                   </button>
                 ))}
               </div>
@@ -268,7 +271,7 @@ export default function GoalsPage() {
                     }`}
                     style={editCategory === cat.value ? { backgroundColor: categoryColors[cat.value] } : {}}
                   >
-                    {cat.emoji} {cat.label}
+                    {cat.label}
                   </button>
                 ))}
               </div>
@@ -289,7 +292,7 @@ export default function GoalsPage() {
       {/* Empty state */}
       {store.goals.length === 0 && (
         <div className="text-center py-16 text-muted">
-          <p className="text-4xl mb-3">🌱</p>
+          <Illo src={ILLO.startList} className="h-20 w-auto mx-auto mb-3" />
           <p className="font-bold">No goals yet</p>
           <p className="text-sm mt-1">Tap + to add your first one</p>
         </div>
@@ -299,6 +302,7 @@ export default function GoalsPage() {
       <div className="space-y-3 md:grid md:grid-cols-2 md:gap-4 md:space-y-0">
         {store.goals.map((goal) => {
           const color = categoryColors[goal.category] || '#8B6F5E'
+          const GoalIcon = categoryIcon(goal.category)
           const taskCount = store.microTasks.filter(t => t.goalId === goal.id).length
           const doneCount = store.microTasks.filter(t => t.goalId === goal.id && t.status === 'completed').length
           const isConfirmDelete = confirmDeleteId === goal.id
@@ -311,7 +315,7 @@ export default function GoalsPage() {
               className="bg-card border border-card-border rounded-2xl p-4 flex items-center gap-4"
             >
               <ProgressRing progress={goal.progressPct} size={56} strokeWidth={6} color={color}>
-                <span className="text-lg">{goal.emoji}</span>
+                <GoalIcon size={20} style={{ color }} />
               </ProgressRing>
 
               <div className="flex-1 min-w-0">
