@@ -1,4 +1,60 @@
-import type { CalendarEvent, ScheduleGap, ScheduledTask, TaskWithGoal, GapSize, Goal, MicroTask } from './types'
+import type { CalendarEvent, ScheduleGap, ScheduledTask, TaskWithGoal, GapSize, Goal, MicroTask, FixedBlock } from './types'
+
+// Gym is one hour, with travel before and after. These are her slots.
+export const GYM_SLOTS = [
+  { label: '5:45 AM', hour: 5, min: 45 },
+  { label: '7:00 AM', hour: 7, min: 0 },
+  { label: '12:00 PM', hour: 12, min: 0 },
+  { label: '4:30 PM', hour: 16, min: 30 },
+  { label: '6:00 PM', hour: 18, min: 0 },
+]
+export const GYM_DURATION_MIN = 60
+export const GYM_TRAVEL_MIN = 30
+
+export function ymd(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+// Today's fixed blocks as calendar events (core + travel) to merge into the day.
+export function materializeFixedBlocks(blocks: FixedBlock[], date: Date): CalendarEvent[] {
+  const out: CalendarEvent[] = []
+  const dayKey = ymd(date)
+  const weekday = date.getDay()
+  for (const b of blocks) {
+    const active = b.date ? b.date === dayKey : b.days.includes(weekday)
+    if (!active) continue
+    const start = new Date(date); start.setHours(b.startHour, b.startMin, 0, 0)
+    const end = new Date(start.getTime() + b.durationMin * 60000)
+    out.push({ id: `${b.id}-core`, calendarId: 'fixed', title: `${b.emoji} ${b.title}`, startTime: start.toISOString(), endTime: end.toISOString(), color: b.color })
+    if (b.travelMin > 0) {
+      const tb = new Date(start.getTime() - b.travelMin * 60000)
+      const ta = new Date(end.getTime() + b.travelMin * 60000)
+      out.push({ id: `${b.id}-travel-before`, calendarId: 'travel', title: '🚗 Travel', startTime: tb.toISOString(), endTime: start.toISOString(), color: b.color })
+      out.push({ id: `${b.id}-travel-after`, calendarId: 'travel', title: '🚗 Travel', startTime: end.toISOString(), endTime: ta.toISOString(), color: b.color })
+    }
+  }
+  return out
+}
+
+export interface GymConflict { coreConflict: boolean; travelConflict: boolean; titles: string[] }
+
+// Does a gym slot clash? Core overlap is a real conflict; an overlap only in the
+// travel window is fine (she can take the call in transit) but worth flagging.
+export function gymConflicts(hour: number, min: number, events: CalendarEvent[], date: Date): GymConflict {
+  const start = new Date(date); start.setHours(hour, min, 0, 0)
+  const end = new Date(start.getTime() + GYM_DURATION_MIN * 60000)
+  const tStart = new Date(start.getTime() - GYM_TRAVEL_MIN * 60000)
+  const tEnd = new Date(end.getTime() + GYM_TRAVEL_MIN * 60000)
+  let coreConflict = false, travelConflict = false
+  const titles: string[] = []
+  const overlaps = (es: number, ee: number, a: number, b: number) => es < b && ee > a
+  for (const e of events) {
+    const es = new Date(e.startTime).getTime(), ee = new Date(e.endTime).getTime()
+    if (overlaps(es, ee, start.getTime(), end.getTime())) { coreConflict = true; titles.push(e.title) }
+    else if (overlaps(es, ee, tStart.getTime(), start.getTime()) || overlaps(es, ee, end.getTime(), tEnd.getTime())) { travelConflict = true; titles.push(e.title) }
+  }
+  return { coreConflict, travelConflict, titles: [...new Set(titles)] }
+}
 
 // The one live step per goal: the lowest-sequence pending micro-task. This is the
 // next-action model — she only ever sees the current step of a project, and it stays

@@ -12,14 +12,23 @@ import { RhythmStrip } from './RhythmStrip'
 import { PresenceBar } from './PresenceBar'
 import { MeetingCopilot } from './MeetingCopilot'
 import { WaterTracker } from './WaterTracker'
+import { BreakCard } from './BreakCard'
+import { GymPicker } from './GymPicker'
 import { CaptureSheet } from './CaptureSheet'
 import { Illo } from './Illo'
 import { ILLO, DONE_ILLOS, pickDaily } from '@/lib/illustrations'
 import { categoryColors } from '@/lib/mock-data'
 import type { CalendarEvent, TimelineItem } from '@/lib/types'
 import { useStore } from '@/lib/store'
-import { computeGaps, slotTasks, currentNextActions } from '@/lib/schedule'
+import { computeGaps, slotTasks, currentNextActions, materializeFixedBlocks, ymd } from '@/lib/schedule'
 import { ProgressRing } from './ProgressRing'
+
+// Quick timed breaks. Snack/bathroom prompt a water refill since she's already up.
+const BREAKS = [
+  { kind: 'snack', label: 'Snack', mins: 5, promptWater: true, emoji: '🍎' },
+  { kind: 'bathroom', label: 'Bathroom', mins: 3, promptWater: true, emoji: '🚻' },
+  { kind: 'break', label: 'Break', mins: 5, promptWater: false, emoji: '☕' },
+]
 
 // An italic-accent serif section header: "Just do this" → "Just do *this*".
 function Head({ lead, accent, className = '' }: { lead: string; accent: string; className?: string }) {
@@ -39,6 +48,7 @@ export function TodayView() {
   const [calCount, setCalCount] = useState<number | null>(null)
   const [calFailed, setCalFailed] = useState<string[]>([])
   const [captureOpen, setCaptureOpen] = useState(false)
+  const [breakMode, setBreakMode] = useState<{ label: string; mins: number; promptWater: boolean } | null>(null)
   const [inbox, setInbox] = useState<{ id: string; raw_text: string | null; source: string }[]>([])
 
   useEffect(() => {
@@ -97,13 +107,21 @@ export function TodayView() {
   const nextActions = currentNextActions(store.goals, store.microTasks)
   const topTasks = nextActions.slice(0, 5)
 
+  // Her real anchors (school runs, gym) become hard blocks the day schedules around.
+  const fixedEvents = materializeFixedBlocks(store.settings.fixedBlocks, now)
+  const allEvents = [...events, ...fixedEvents]
+  const gymId = `gym-${ymd(now)}`
+  const currentGym = store.settings.fixedBlocks.find(b => b.id === gymId) ?? null
+  // Gym conflicts check against meetings + other anchors, not the gym's own blocks.
+  const conflictEvents = [...events, ...fixedEvents.filter(e => !e.id.startsWith(gymId))]
+
   const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), store.settings.wakeHour, 0, 0)
   const dayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), store.settings.sleepHour, 0, 0)
-  const gaps = computeGaps(events, dayStart, dayEnd)
+  const gaps = computeGaps(allEvents, dayStart, dayEnd)
   const scheduled = slotTasks(gaps, nextActions, now, store.settings.transitionBufferMin)
 
   const timeline: TimelineItem[] = [
-    ...events.map(e => ({ sortTime: e.startTime, item: { type: 'event' as const, data: e } })),
+    ...allEvents.map(e => ({ sortTime: e.startTime, item: { type: 'event' as const, data: e } })),
     ...gaps.map(g => ({
       sortTime: g.startTime,
       item: { type: 'gap' as const, data: g, scheduledTasks: scheduled.filter(st => st.gap.id === g.id) },
@@ -185,6 +203,10 @@ export function TodayView() {
     <MeetingCopilot events={events} now={now} asyncMeetings={store.asyncMeetings} onToggleAsync={store.toggleAsyncMeeting} />
   )
 
+  const gymPicker = (
+    <GymPicker events={conflictEvents} now={now} currentGym={currentGym} onPick={store.setGymSlot} onClear={store.clearGym} />
+  )
+
   const water = (
     <WaterTracker
       log={store.ritualLog['water'] ?? []}
@@ -195,32 +217,50 @@ export function TodayView() {
   )
 
   const justDoThis = (
-    <>
-      {topTasks.length > 0 && (
-        <section className="mb-10">
-          <Head lead="Just do" accent="this" className="mb-4" />
-          <JustDoThisCard tasks={topTasks} onComplete={store.completeTask} onSkip={store.skipTask} />
-        </section>
-      )}
-      {topTasks.length === 0 && store.goals.length > 0 && (
-        <section className="mb-10">
-          <div className="bg-success-soft rounded-[2rem] p-10 text-center">
-            <Illo src={pickDaily(DONE_ILLOS)} className="h-28 w-auto mx-auto mb-4" />
-            <h2 className="font-display text-3xl font-bold">All <span className="italic font-normal">clear</span></h2>
-            <p className="text-muted text-sm mt-1">Nothing on the list. Go do something you love.</p>
+    <section className="mb-10">
+      <Head lead="Just do" accent="this" className="mb-4" />
+      {breakMode ? (
+        <BreakCard
+          label={breakMode.label}
+          mins={breakMode.mins}
+          promptWater={breakMode.promptWater}
+          onRefill={() => store.completeRitual('water')}
+          onDone={() => setBreakMode(null)}
+        />
+      ) : (
+        <>
+          {topTasks.length > 0 ? (
+            <JustDoThisCard tasks={topTasks} onComplete={store.completeTask} onSkip={store.skipTask} />
+          ) : store.goals.length > 0 ? (
+            <div className="bg-success-soft rounded-[2rem] p-10 text-center">
+              <Illo src={pickDaily(DONE_ILLOS)} className="h-28 w-auto mx-auto mb-4" />
+              <h2 className="font-display text-3xl font-bold">All <span className="italic font-normal">clear</span></h2>
+              <p className="text-muted text-sm mt-1">Nothing on the list. Go do something you love.</p>
+            </div>
+          ) : (
+            <button onClick={() => setCaptureOpen(true)} className="w-full bg-today-tint rounded-[2rem] p-10 text-center hover:opacity-90 transition-opacity">
+              <Illo src={ILLO.startList} className="h-24 w-auto mx-auto mb-4 animate-float" />
+              <h2 className="font-display text-3xl font-bold text-today-ink">Start your <span className="italic font-normal">list</span></h2>
+              <p className="text-muted text-sm mt-1">Snap a photo of a list, or jot one thing you want to get done.</p>
+            </button>
+          )}
+
+          {/* Quick breaks: a timed 3-5 min step away, with a water nudge */}
+          <div className="grid grid-cols-3 gap-3 mt-4">
+            {BREAKS.map(b => (
+              <button
+                key={b.kind}
+                onClick={() => setBreakMode({ label: b.label, mins: b.mins, promptWater: b.promptWater })}
+                className="rounded-2xl bg-card border border-card-border py-4 hover:border-today-ink/40 active:scale-[0.97] transition-all"
+              >
+                <span className="block text-3xl mb-1">{b.emoji}</span>
+                <span className="font-display text-base font-bold">{b.label}</span>
+              </button>
+            ))}
           </div>
-        </section>
+        </>
       )}
-      {store.goals.length === 0 && (
-        <section className="mb-10">
-          <button onClick={() => setCaptureOpen(true)} className="w-full bg-today-tint rounded-[2rem] p-10 text-center hover:opacity-90 transition-opacity">
-            <Illo src={ILLO.startList} className="h-24 w-auto mx-auto mb-4 animate-float" />
-            <h2 className="font-display text-3xl font-bold text-today-ink">Start your <span className="italic font-normal">list</span></h2>
-            <p className="text-muted text-sm mt-1">Snap a photo of a list, or jot one thing you want to get done.</p>
-          </button>
-        </section>
-      )}
-    </>
+    </section>
   )
 
   const flowSection = (
@@ -236,6 +276,10 @@ export function TodayView() {
       )}
       {calLoading ? (
         <p className="font-mono text-xs text-muted py-4">loading your calendar...</p>
+      ) : timeline.length > 0 ? (
+        <div className="rounded-[1.75rem] p-5 space-y-3" style={{ backgroundColor: 'var(--today-tint)' }}>
+          {railRows}
+        </div>
       ) : noCalendars ? (
         <Link href="/settings">
           <div className="rounded-[1.75rem] p-8 text-center" style={{ backgroundColor: 'var(--today-tint)' }}>
@@ -243,13 +287,9 @@ export function TodayView() {
             <p className="text-xs text-muted mt-1">Add your Google or iCal links so the day knows your free time.</p>
           </div>
         </Link>
-      ) : timeline.length === 0 ? (
+      ) : (
         <div className="rounded-[1.75rem] p-8 text-center font-mono text-sm text-muted" style={{ backgroundColor: 'var(--today-tint)' }}>
           No events today. Your whole day is open.
-        </div>
-      ) : (
-        <div className="rounded-[1.75rem] p-5 space-y-3" style={{ backgroundColor: 'var(--today-tint)' }}>
-          {railRows}
         </div>
       )}
     </section>
@@ -331,14 +371,15 @@ export function TodayView() {
     <div className="hidden md:grid md:grid-cols-[1fr_340px] md:gap-10 md:p-10 md:max-w-6xl">
       <div>
         {header({ day: 'text-7xl', num: 'text-[9rem]', month: 'text-2xl' })}
-        {water}
         {meetingCopilot}
         {justDoThis}
         {rhythm}
         {presence}
+        {gymPicker}
         {flowSection}
       </div>
       <div className="space-y-10 pt-2">
+        {water}
         {winsTiles}
         {goalsRail}
       </div>
@@ -353,11 +394,12 @@ export function TodayView() {
         <span className="font-display text-base font-bold">GaeDHD</span>
       </div>
       {header({ day: 'text-6xl', num: 'text-[7rem]', month: 'text-xl' })}
-      {water}
+      <div className="mb-10">{water}</div>
       {meetingCopilot}
       {justDoThis}
       {rhythm}
       {presence}
+      {gymPicker}
       {flowSection}
       {winsTiles}
     </div>
