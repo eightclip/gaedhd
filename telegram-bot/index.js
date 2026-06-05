@@ -109,11 +109,9 @@ GaeDHD bot — your ADHD second brain, now in Telegram.
 Everything lands in your GaeDHD app at https://gaedhd.jmj.fyi for you to accept, skip, or reschedule. I never delete anything — I only add.
 `.trim();
 
-// First hello — the birthday greeting she sees when she opens the bot.
+// Evergreen first hello (any day that isn't her birthday window).
 const WELCOME_TEXT = `
-Hey! 🎂 Happy Birthday.
-
-I'm here to help you with your brain. Think of me as a little second brain in your pocket — throw anything at me and I'll hold onto it for you.
+Hey! 💛 I'm your second brain in your pocket. Throw anything at me and I'll hold onto it for you.
 
 *Try it*
 • Send me any thought or to-do → it lands in your list.
@@ -121,10 +119,38 @@ I'm here to help you with your brain. Think of me as a little second brain in yo
 • /next — the one thing to focus on right now.
 • /today — your snapshot: task, rituals, streak, next meeting.
 
-It all shows up in your app at https://gaedhd.jmj.fyi. I only ever add, never delete. 💛
+It all shows up in your app at https://gaedhd.jmj.fyi. I only ever add, never delete.
 `.trim();
 
-bot.command("start", (ctx) => ctx.reply(WELCOME_TEXT, { parse_mode: "Markdown" }));
+// The first thing she EVER sees from the bot is this, because she opens it on
+// her birthday. From John.
+const BIRTHDAY_WELCOME = `
+Happy Birthday, gorgeous. 🎂
+
+Today the *strongest, hottest, most capable woman I know* gets her own celebration, and her own second brain to match.
+
+You are a knockout. Soft and girly and absolutely lethal all at once. Those muscles? Earned. That mind? Sharper than you give it credit for. There is nothing on your list you can't crush, and I built this so you never have to hold all of it in your head alone again.
+
+So here's the deal, birthday girl. Throw anything at me and I'll carry it:
+• Any thought or to-do → straight into your list.
+• Snap a photo of a handwritten list → I'll read it and add every item.
+• /next for your one thing right now.
+• /today for your snapshot: task, rituals, streak, next meeting.
+
+It all lives at https://gaedhd.jmj.fyi. I only ever add, never delete.
+
+Now go be the badass you are. I've got the rest. 😘
+`.trim();
+
+// Her birthday week, so the special version lands even if she opens the bot a
+// day early or late around the gift reveal.
+function isBirthdayWindow(d = new Date()) {
+  return d.getMonth() === 5 && d.getDate() >= 5 && d.getDate() <= 8; // June 5–8
+}
+
+bot.command("start", (ctx) =>
+  ctx.reply(isBirthdayWindow() ? BIRTHDAY_WELCOME : WELCOME_TEXT, { parse_mode: "Markdown" })
+);
 bot.command("help", (ctx) => ctx.reply(HELP_TEXT, { parse_mode: "Markdown" }));
 
 // ---------------------------------------------------------------------------
