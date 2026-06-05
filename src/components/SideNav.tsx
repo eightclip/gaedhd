@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Zap, MessageCircle, Target, ParkingMeter, TrendingUp, Settings } from 'lucide-react'
+import { Illo } from './Illo'
 
 const tabs = [
   { href: '/', label: 'Today', icon: Zap },
@@ -19,8 +20,8 @@ export function SideNav() {
 
   return (
     <nav className="hidden md:flex flex-col w-56 min-h-screen bg-[#1A1714] shrink-0 px-3 py-6 sticky top-0 self-start">
-      <div className="flex items-center gap-2 px-3 mb-8">
-        <Zap size={20} className="text-accent fill-accent" />
+      <div className="flex items-center gap-2.5 px-3 mb-8">
+        <Illo src="/avatar.png" alt="" className="w-9 h-9 rounded-xl" />
         <span className="font-display text-xl font-bold text-white">GaeDHD</span>
       </div>
 
