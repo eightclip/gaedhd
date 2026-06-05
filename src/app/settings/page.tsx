@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { Key, User, Clock, Trash2, ChevronLeft, Check, ExternalLink, Calendar, Plus, X, Sparkles, MapPin } from 'lucide-react'
 import Link from 'next/link'
 import { useStore, detectCalendarType } from '@/lib/store'
+import { TINTS, type TintName } from '@/lib/theme'
+import type { RitualCadence } from '@/lib/rituals'
 
 export default function SettingsPage() {
   const store = useStore()
@@ -261,6 +263,82 @@ export default function SettingsPage() {
             className="w-full mt-3 py-2.5 bg-accent text-white rounded-xl text-sm font-bold hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
           >
             <Plus size={16} /> Add date
+          </button>
+        </div>
+      </section>
+
+      {/* Rhythms */}
+      <section className="mb-6">
+        <div className="flex items-center gap-2 mb-2">
+          <Clock size={16} className="text-accent" />
+          <h2 className="font-bold text-sm">Rhythms</h2>
+        </div>
+        <div className="bg-card border border-card-border rounded-2xl p-4">
+          <p className="text-xs text-muted mb-3">
+            Her recurring nudges. Set how often each repeats and the hours it&apos;s active.
+          </p>
+          <div className="space-y-3">
+            {store.rituals.map(r => (
+              <div key={r.id} className="bg-muted-light rounded-xl p-3 space-y-2.5">
+                <div className="flex items-center gap-2">
+                  <input
+                    value={r.title}
+                    onChange={e => store.updateRitual(r.id, { title: e.target.value })}
+                    className="flex-1 min-w-0 bg-card rounded-lg px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-accent/30"
+                  />
+                  <button onClick={() => store.removeRitual(r.id)} className="p-1.5 text-muted hover:text-red-500 transition-colors shrink-0" aria-label="Remove rhythm">
+                    <X size={15} />
+                  </button>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <select
+                    value={r.cadence.kind}
+                    onChange={e => {
+                      const k = e.target.value as RitualCadence['kind']
+                      const c: RitualCadence = k === 'everyHours' ? { kind: 'everyHours', hours: 2 }
+                        : k === 'timesPerDay' ? { kind: 'timesPerDay', times: 3 }
+                        : k === 'dailyAt' ? { kind: 'dailyAt', hour: 9 }
+                        : k === 'everyDays' ? { kind: 'everyDays', days: 2 }
+                        : { kind: 'daily' }
+                      store.updateRitual(r.id, { cadence: c })
+                    }}
+                    className="bg-card rounded-lg px-2 py-1.5 focus:outline-none"
+                  >
+                    <option value="everyHours">every N hours</option>
+                    <option value="timesPerDay">N times a day</option>
+                    <option value="dailyAt">once, from hour</option>
+                    <option value="daily">once a day</option>
+                    <option value="everyDays">every N days</option>
+                  </select>
+                  {r.cadence.kind === 'everyHours' && <input type="number" min={1} max={12} value={r.cadence.hours} onChange={e => store.updateRitual(r.id, { cadence: { kind: 'everyHours', hours: Math.max(1, +e.target.value || 1) } })} className="w-14 bg-card rounded-lg px-2 py-1.5" />}
+                  {r.cadence.kind === 'timesPerDay' && <input type="number" min={1} max={12} value={r.cadence.times} onChange={e => store.updateRitual(r.id, { cadence: { kind: 'timesPerDay', times: Math.max(1, +e.target.value || 1) } })} className="w-14 bg-card rounded-lg px-2 py-1.5" />}
+                  {r.cadence.kind === 'dailyAt' && <input type="number" min={0} max={23} value={r.cadence.hour} onChange={e => store.updateRitual(r.id, { cadence: { kind: 'dailyAt', hour: Math.min(23, Math.max(0, +e.target.value || 0)) } })} className="w-14 bg-card rounded-lg px-2 py-1.5" />}
+                  {r.cadence.kind === 'everyDays' && <input type="number" min={1} max={30} value={r.cadence.days} onChange={e => store.updateRitual(r.id, { cadence: { kind: 'everyDays', days: Math.max(1, +e.target.value || 1) } })} className="w-14 bg-card rounded-lg px-2 py-1.5" />}
+                </div>
+                <div className="flex items-center gap-2 text-xs text-muted">
+                  <span>active</span>
+                  <input type="number" min={0} max={23} value={r.window?.startHour ?? 7} onChange={e => store.updateRitual(r.id, { window: { startHour: Math.min(23, Math.max(0, +e.target.value || 0)), endHour: r.window?.endHour ?? 21 } })} className="w-14 bg-card rounded-lg px-2 py-1.5" />
+                  <span>to</span>
+                  <input type="number" min={0} max={23} value={r.window?.endHour ?? 21} onChange={e => store.updateRitual(r.id, { window: { startHour: r.window?.startHour ?? 7, endHour: Math.min(23, Math.max(0, +e.target.value || 0)) } })} className="w-14 bg-card rounded-lg px-2 py-1.5" />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex gap-1.5">
+                    {(Object.keys(TINTS) as TintName[]).map(t => (
+                      <button key={t} onClick={() => store.updateRitual(r.id, { tint: t })} className={`w-5 h-5 rounded-full transition-all ${r.tint === t ? 'ring-2 ring-offset-1 ring-foreground' : ''}`} style={{ backgroundColor: TINTS[t].ink }} aria-label={t} />
+                    ))}
+                  </div>
+                  <label className="flex items-center gap-1.5 text-xs text-muted cursor-pointer">
+                    <input type="checkbox" checked={!!r.private} onChange={e => store.updateRitual(r.id, { private: e.target.checked })} className="accent-accent" /> phone only
+                  </label>
+                </div>
+              </div>
+            ))}
+          </div>
+          <button
+            onClick={() => store.addRitual({ id: `ritual-${Date.now()}`, title: 'New rhythm', emoji: '', nudge: '', cadence: { kind: 'daily' }, tint: 'sage', window: { startHour: 9, endHour: 18 } })}
+            className="w-full mt-3 py-2.5 bg-accent text-white rounded-xl text-sm font-bold hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+          >
+            <Plus size={16} /> Add rhythm
           </button>
         </div>
       </section>

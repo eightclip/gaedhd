@@ -460,6 +460,22 @@ export function useStore() {
     setState(prev => ({ ...prev, rituals }))
   }, [])
 
+  const addRitual = useCallback((r: Ritual) => {
+    setState(prev => ({ ...prev, rituals: [...prev.rituals, r] }))
+  }, [])
+
+  const updateRitual = useCallback((id: string, updates: Partial<Ritual>) => {
+    setState(prev => ({ ...prev, rituals: prev.rituals.map(r => r.id === id ? { ...r, ...updates } : r) }))
+  }, [])
+
+  const removeRitual = useCallback((id: string) => {
+    setState(prev => {
+      const { [id]: _drop, ...restLog } = prev.ritualLog
+      void _drop
+      return { ...prev, rituals: prev.rituals.filter(r => r.id !== id), ritualLog: restLog }
+    })
+  }, [])
+
   // Flag/unflag a recurring meeting (by title) as "this could be async".
   const toggleAsyncMeeting = useCallback((title: string) => {
     setState(prev => ({
@@ -502,6 +518,9 @@ export function useStore() {
     completeRitual,
     undoRitual,
     updateRituals,
+    addRitual,
+    updateRitual,
+    removeRitual,
     toggleAsyncMeeting,
     resetData,
   }
