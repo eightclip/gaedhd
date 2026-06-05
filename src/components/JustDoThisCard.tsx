@@ -2,13 +2,13 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Check, SkipForward, Clock } from 'lucide-react'
+import { Check, SkipForward, Clock, Target } from 'lucide-react'
 import type { TaskWithGoal } from '@/lib/types'
 import { categoryColors } from '@/lib/mock-data'
 import { ConfettiPop } from './ConfettiPop'
 import { Illo } from './Illo'
 import { SPARKLES, pickRandom } from '@/lib/illustrations'
-import { categoryIcon } from '@/lib/icons'
+import { CATEGORY_ICON } from '@/lib/icons'
 
 interface JustDoThisCardProps {
   tasks: TaskWithGoal[]
@@ -88,7 +88,7 @@ export function JustDoThisCard({ tasks, onComplete, onSkip }: JustDoThisCardProp
   if (!currentTask) return null
 
   const color = categoryColors[currentTask.goal.category] || '#8B6F5E'
-  const GoalIcon = categoryIcon(currentTask.goal.category)
+  const GoalIcon = CATEGORY_ICON[currentTask.goal.category] ?? Target
 
   return (
     <div className="relative">
