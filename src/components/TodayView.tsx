@@ -16,6 +16,8 @@ import { ImportantDates } from './ImportantDates'
 import { BreakCard } from './BreakCard'
 import { GymPicker } from './GymPicker'
 import { CaptureSheet } from './CaptureSheet'
+import { BirthdayTakeover } from './BirthdayTakeover'
+import { RECIPIENT_NAME } from '@/lib/letter'
 import { Illo } from './Illo'
 import { ILLO, DONE_ILLOS, pickDaily } from '@/lib/illustrations'
 import { categoryIcon, BREAK_ICON } from '@/lib/icons'
@@ -52,6 +54,13 @@ export function TodayView() {
   const [captureOpen, setCaptureOpen] = useState(false)
   const [breakMode, setBreakMode] = useState<{ label: string; mins: number; promptWater: boolean } | null>(null)
   const [inbox, setInbox] = useState<{ id: string; raw_text: string | null; source: string }[]>([])
+  const [birthdayDismissed, setBirthdayDismissed] = useState(false)
+  // Preview the takeover any day via /?birthday-preview (won't burn the real
+  // once-a-year moment). Safe to read window lazily: the takeover is gated on
+  // store.loaded, which is false at hydration, so there's no markup mismatch.
+  const [birthdayPreview] = useState(() =>
+    typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('birthday-preview')
+  )
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 60_000)
@@ -423,8 +432,22 @@ export function TodayView() {
     </div>
   )
 
+  // The birthday takeover: fires the first time she opens the app on her own
+  // birthday, then once a year after. Preview mode shows it any day, unpersisted.
+  const herBday = store.settings.importantDates.find(d => d.id === 'bday-her')
+  const isHerBirthday = !!herBday && now.getMonth() + 1 === herBday.month && now.getDate() === herBday.day
+  const showBirthday = store.loaded && !birthdayDismissed
+    && (birthdayPreview || (isHerBirthday && store.birthdayMomentYear !== now.getFullYear()))
+  const dismissBirthday = () => {
+    setBirthdayDismissed(true)
+    if (!birthdayPreview) store.dismissBirthdayMoment(now.getFullYear())
+  }
+
   return (
     <>
+      {showBirthday && (
+        <BirthdayTakeover name={store.settings.userName || RECIPIENT_NAME} onDismiss={dismissBirthday} />
+      )}
       {desktop}
       {mobile}
       {fab}

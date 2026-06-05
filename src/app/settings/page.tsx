@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Key, User, Clock, Trash2, ChevronLeft, Check, ExternalLink, Calendar, Plus, X, Sparkles, MapPin } from 'lucide-react'
 import Link from 'next/link'
 import { useStore, detectCalendarType } from '@/lib/store'
+import { NoteFromJohn } from '@/components/NoteFromJohn'
 import { TINTS, type TintName } from '@/lib/theme'
 import type { RitualCadence } from '@/lib/rituals'
 
@@ -50,6 +51,10 @@ export default function SettingsPage() {
         </Link>
         <h1 className="font-display text-4xl font-bold tracking-tight">Settings</h1>
       </div>
+
+      <section className="mb-6">
+        <NoteFromJohn />
+      </section>
 
       {/* API Key */}
       <section className="mb-6">

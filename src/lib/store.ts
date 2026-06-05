@@ -62,6 +62,8 @@ export interface AppState {
   asyncMeetings: string[]
   // Per important-date occurrence (`${id}-${year}`): 'queued' once its gift-prep was added.
   importantDateLog: Record<string, string>
+  // The year she last saw the birthday takeover, so the moment fires once a year.
+  birthdayMomentYear: number
   streak: number
   tasksCompletedToday: number
 }
@@ -103,6 +105,7 @@ const INITIAL_STATE: AppState = {
   ritualLog: {},
   asyncMeetings: [],
   importantDateLog: {},
+  birthdayMomentYear: 0,
   streak: 5,
   tasksCompletedToday: 3,
 }
@@ -486,6 +489,11 @@ export function useStore() {
     }))
   }, [])
 
+  // Mark this year's birthday takeover as seen so it doesn't fire again.
+  const dismissBirthdayMoment = useCallback((year: number) => {
+    setState(prev => ({ ...prev, birthdayMomentYear: year }))
+  }, [])
+
   const resetData = useCallback(() => {
     setState(INITIAL_STATE)
   }, [])
@@ -522,6 +530,7 @@ export function useStore() {
     updateRitual,
     removeRitual,
     toggleAsyncMeeting,
+    dismissBirthdayMoment,
     resetData,
   }
 }
