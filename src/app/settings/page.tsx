@@ -1,10 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { Key, User, Clock, Trash2, ChevronLeft, Check, ExternalLink, Calendar, Plus, X, Sparkles, MapPin } from 'lucide-react'
+import { Key, User, Clock, Trash2, ChevronLeft, Check, ExternalLink, Calendar, Plus, X, Sparkles, MapPin, Bell } from 'lucide-react'
 import Link from 'next/link'
 import { useStore, detectCalendarType } from '@/lib/store'
 import { NoteFromJohn } from '@/components/NoteFromJohn'
+import { PushToggle } from '@/components/PushToggle'
 import { TINTS, type TintName } from '@/lib/theme'
 import type { RitualCadence } from '@/lib/rituals'
 
@@ -54,6 +55,15 @@ export default function SettingsPage() {
 
       <section className="mb-6">
         <NoteFromJohn />
+      </section>
+
+      {/* Notifications */}
+      <section className="mb-6">
+        <div className="flex items-center gap-2 mb-2">
+          <Bell size={16} className="text-accent" />
+          <h2 className="font-bold text-sm">Notifications</h2>
+        </div>
+        <PushToggle />
       </section>
 
       {/* API Key */}
