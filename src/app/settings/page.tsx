@@ -37,7 +37,7 @@ export default function SettingsPage() {
         <Link href="/" className="md:hidden p-2 rounded-full bg-muted-light hover:bg-foreground/10 transition-colors">
           <ChevronLeft size={18} />
         </Link>
-        <h1 className="font-display text-3xl font-bold">Settings</h1>
+        <h1 className="font-display text-4xl font-bold tracking-tight">Settings</h1>
       </div>
 
       {/* API Key */}
