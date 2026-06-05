@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import type { Goal, MicroTask, ParkingLotItem } from './types'
+import type { Goal, MicroTask, ParkingLotItem, FixedBlock } from './types'
 import type { Ritual } from './rituals'
 import { DEFAULT_RITUALS } from './rituals'
 import { goals as mockGoals, microTasks as mockTasks, parkingLotItems as mockParking } from './mock-data'
@@ -38,6 +38,7 @@ export interface AppSettings {
   transitionBufferMin: number // minutes between events
   calendarSources: CalendarSource[]
   userContext: string // her equipment, spaces, preferences — fed to the AI breakdown
+  fixedBlocks: FixedBlock[] // her real anchors (school runs, gym) that shape the day
 }
 
 const CALENDAR_COLORS = ['#C85D3E', '#7B9E6B', '#9B7EC8', '#6BA3BE', '#D4845E', '#C87E9E']
@@ -70,6 +71,10 @@ const DEFAULT_SETTINGS: AppSettings = {
   transitionBufferMin: 3,
   calendarSources: [],
   userContext: '',
+  fixedBlocks: [
+    { id: 'school-drop', title: 'Take kids to school', emoji: '🏫', startHour: 8, startMin: 0, durationMin: 30, travelMin: 0, days: [1, 2, 3, 4, 5], color: '#C87E9E' },
+    { id: 'school-pickup', title: 'Pick up kids', emoji: '🏫', startHour: 15, startMin: 0, durationMin: 30, travelMin: 0, days: [1, 2, 3, 4, 5], color: '#C87E9E' },
+  ],
 }
 
 const INITIAL_STATE: AppState = {
@@ -345,6 +350,26 @@ export function useStore() {
     }))
   }, [])
 
+  // Set (or replace) today's gym slot as a one-off fixed block with travel buffers.
+  const setGymSlot = useCallback((hour: number, min: number) => {
+    setState(prev => {
+      const d = new Date()
+      const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      const gymId = `gym-${today}`
+      const others = prev.settings.fixedBlocks.filter(b => b.id !== gymId)
+      const gym: FixedBlock = { id: gymId, title: 'Gym', emoji: '🏋️', startHour: hour, startMin: min, durationMin: 60, travelMin: 30, days: [], date: today, color: '#7B9E6B' }
+      return { ...prev, settings: { ...prev.settings, fixedBlocks: [...others, gym] } }
+    })
+  }, [])
+
+  const clearGym = useCallback(() => {
+    setState(prev => {
+      const d = new Date()
+      const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      return { ...prev, settings: { ...prev.settings, fixedBlocks: prev.settings.fixedBlocks.filter(b => b.id !== `gym-${today}`) } }
+    })
+  }, [])
+
   const completeRitual = useCallback((ritualId: string) => {
     setState(prev => ({
       ...prev,
@@ -400,6 +425,8 @@ export function useStore() {
     updateSettings,
     addCalendarSource,
     removeCalendarSource,
+    setGymSlot,
+    clearGym,
     completeRitual,
     undoRitual,
     updateRituals,

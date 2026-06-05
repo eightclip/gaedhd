@@ -101,6 +101,23 @@ export interface ScheduledTask {
   completedAt?: string
 }
 
+// ─── Fixed timeboxes ────────────────────────────────────────────
+// Her real anchors that aren't on the shared calendar (school runs, gym).
+// They block time so movable tasks schedule around them. Travel is "soft":
+// it can overlap a meeting (a call in transit), the core cannot.
+export interface FixedBlock {
+  id: string
+  title: string
+  emoji: string
+  startHour: number
+  startMin: number
+  durationMin: number
+  travelMin: number // buffer before AND after (0 for none)
+  days: number[] // recurring weekdays (0=Sun..6=Sat); empty for one-off
+  date?: string // YYYY-MM-DD for a one-off (e.g. today's gym)
+  color: string
+}
+
 // ─── Parking Lot ────────────────────────────────────────────────
 export interface ParkingLotItem {
   id: string
