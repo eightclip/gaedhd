@@ -12,7 +12,11 @@ export default auth((req) => {
     req.nextUrl.pathname.startsWith('/api/now') ||
     req.nextUrl.pathname.startsWith('/api/calendar') ||
     req.nextUrl.pathname.startsWith('/api/here') ||
+    // Geofence arrivals (Apple Shortcuts) hit this with a token, never a session.
+    req.nextUrl.pathname.startsWith('/api/arrive') ||
     req.nextUrl.pathname.startsWith('/api/inbox') ||
+    // The push service worker must stay fetchable for registration + update checks.
+    req.nextUrl.pathname === '/sw.js' ||
     // The office TV kiosk is token-gated in the page/endpoint, not by session.
     req.nextUrl.pathname.startsWith('/kiosk')
 
