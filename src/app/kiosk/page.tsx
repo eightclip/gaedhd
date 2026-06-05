@@ -2,8 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { format } from 'date-fns'
+import { Sparkles } from 'lucide-react'
 import { Illo } from '@/components/Illo'
 import { RITUAL_ILLO, ILLO } from '@/lib/illustrations'
+import { RITUAL_ICON } from '@/lib/icons'
 
 interface KioskEvent { id: string; title: string; startTime: string; endTime: string; color: string }
 interface KioskRitual { id: string; title: string; emoji: string; nudge: string; tint: string }
@@ -110,7 +112,7 @@ export default function KioskPage() {
             <div>
               <p className="font-display text-[4.5vw] font-bold leading-[1.05] text-foreground">{data.task.title}</p>
               <p className="font-mono text-[1.4vw] text-today-ink mt-[1vw]">
-                {data.task.emoji} {data.task.goal} · {data.task.durationMin}m
+                {data.task.goal} · {data.task.durationMin}m
               </p>
             </div>
           ) : (
@@ -150,9 +152,11 @@ export default function KioskPage() {
           <p className="font-mono text-[1.1vw] uppercase tracking-widest text-muted">Rhythm</p>
           {ritual ? (
             <div>
-              {RITUAL_ILLO[ritual.id]
-                ? <Illo src={RITUAL_ILLO[ritual.id]} className="h-[5vw] w-auto" />
-                : <p className="text-[3.5vw] leading-none">{ritual.emoji}</p>}
+              {(() => {
+                if (RITUAL_ILLO[ritual.id]) return <Illo src={RITUAL_ILLO[ritual.id]} className="h-[5vw] w-auto" />
+                const Icon = RITUAL_ICON[ritual.id] || Sparkles
+                return <Icon className="w-[5vw] h-[5vw] text-today-ink" />
+              })()}
               <p className="font-display text-[2vw] font-bold leading-tight mt-[0.5vw]">{ritual.title}</p>
               <p className="font-mono text-[1.1vw] text-muted mt-[0.3vw]">{ritual.nudge}</p>
             </div>

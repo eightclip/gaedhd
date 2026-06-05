@@ -25,12 +25,12 @@ export function materializeFixedBlocks(blocks: FixedBlock[], date: Date): Calend
     if (!active) continue
     const start = new Date(date); start.setHours(b.startHour, b.startMin, 0, 0)
     const end = new Date(start.getTime() + b.durationMin * 60000)
-    out.push({ id: `${b.id}-core`, calendarId: 'fixed', title: `${b.emoji} ${b.title}`, startTime: start.toISOString(), endTime: end.toISOString(), color: b.color })
+    out.push({ id: `${b.id}-core`, calendarId: 'fixed', title: b.title, startTime: start.toISOString(), endTime: end.toISOString(), color: b.color })
     if (b.travelMin > 0) {
       const tb = new Date(start.getTime() - b.travelMin * 60000)
       const ta = new Date(end.getTime() + b.travelMin * 60000)
-      out.push({ id: `${b.id}-travel-before`, calendarId: 'travel', title: '🚗 Travel', startTime: tb.toISOString(), endTime: start.toISOString(), color: b.color })
-      out.push({ id: `${b.id}-travel-after`, calendarId: 'travel', title: '🚗 Travel', startTime: end.toISOString(), endTime: ta.toISOString(), color: b.color })
+      out.push({ id: `${b.id}-travel-before`, calendarId: 'travel', title: 'Travel', startTime: tb.toISOString(), endTime: start.toISOString(), color: b.color })
+      out.push({ id: `${b.id}-travel-after`, calendarId: 'travel', title: 'Travel', startTime: end.toISOString(), endTime: ta.toISOString(), color: b.color })
     }
   }
   return out

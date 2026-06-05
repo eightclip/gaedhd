@@ -17,6 +17,7 @@ import { GymPicker } from './GymPicker'
 import { CaptureSheet } from './CaptureSheet'
 import { Illo } from './Illo'
 import { ILLO, DONE_ILLOS, pickDaily } from '@/lib/illustrations'
+import { categoryIcon, BREAK_ICON } from '@/lib/icons'
 import { categoryColors } from '@/lib/mock-data'
 import type { CalendarEvent, TimelineItem } from '@/lib/types'
 import { useStore } from '@/lib/store'
@@ -247,16 +248,19 @@ export function TodayView() {
 
           {/* Quick breaks: a timed 3-5 min step away, with a water nudge */}
           <div className="grid grid-cols-3 gap-3 mt-4">
-            {BREAKS.map(b => (
-              <button
-                key={b.kind}
-                onClick={() => setBreakMode({ label: b.label, mins: b.mins, promptWater: b.promptWater })}
-                className="rounded-2xl bg-card border border-card-border py-4 hover:border-today-ink/40 active:scale-[0.97] transition-all"
-              >
-                <span className="block text-3xl mb-1">{b.emoji}</span>
-                <span className="font-display text-base font-bold">{b.label}</span>
-              </button>
-            ))}
+            {BREAKS.map(b => {
+              const Icon = BREAK_ICON[b.kind]
+              return (
+                <button
+                  key={b.kind}
+                  onClick={() => setBreakMode({ label: b.label, mins: b.mins, promptWater: b.promptWater })}
+                  className="rounded-2xl bg-card border border-card-border py-4 hover:border-today-ink/40 active:scale-[0.97] transition-all flex flex-col items-center"
+                >
+                  <Icon size={26} className="mb-1.5 text-today-ink" />
+                  <span className="font-display text-base font-bold">{b.label}</span>
+                </button>
+              )
+            })}
           </div>
         </>
       )}
@@ -343,13 +347,14 @@ export function TodayView() {
       <div className="space-y-3">
         {store.goals.map((goal, i) => {
           const color = categoryColors[goal.category] || '#8B6F5E'
+          const GoalIcon = categoryIcon(goal.category)
           const taskCount = store.microTasks.filter(t => t.goalId === goal.id).length
           const doneCount = store.microTasks.filter(t => t.goalId === goal.id && t.status === 'completed').length
           return (
             <motion.div key={goal.id} initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.05 * i }} className="bg-card border border-card-border rounded-2xl p-4">
               <div className="flex items-center gap-3 mb-2">
                 <ProgressRing progress={goal.progressPct} size={44} strokeWidth={5} color={color}>
-                  <span className="text-sm">{goal.emoji}</span>
+                  <GoalIcon size={16} style={{ color }} />
                 </ProgressRing>
                 <div className="flex-1 min-w-0">
                   <h3 className="font-bold text-sm truncate">{goal.title}</h3>

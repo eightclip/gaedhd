@@ -3,6 +3,7 @@
 import { motion } from 'framer-motion'
 import { Flame, Trophy, Clock, CheckCircle2 } from 'lucide-react'
 import { categoryColors } from '@/lib/mock-data'
+import { categoryIcon } from '@/lib/icons'
 import { ProgressRing } from '@/components/ProgressRing'
 import { useStore } from '@/lib/store'
 
@@ -74,7 +75,6 @@ export default function ProgressPage() {
 
       {store.goals.length === 0 && (
         <div className="text-center py-12 text-muted">
-          <p className="text-3xl mb-2">🌱</p>
           <p className="text-sm">Add some goals to track progress</p>
         </div>
       )}
@@ -82,6 +82,7 @@ export default function ProgressPage() {
       <div className="space-y-3">
         {store.goals.map((goal, i) => {
           const color = categoryColors[goal.category] || '#8B6F5E'
+          const GoalIcon = categoryIcon(goal.category)
           const taskCount = store.microTasks.filter(t => t.goalId === goal.id).length
           const doneCount = store.microTasks.filter(t => t.goalId === goal.id && t.status === 'completed').length
 
@@ -94,7 +95,7 @@ export default function ProgressPage() {
               className="bg-card border border-card-border rounded-2xl p-4"
             >
               <div className="flex items-center gap-3 mb-2">
-                <span className="text-xl">{goal.emoji}</span>
+                <GoalIcon size={20} style={{ color }} />
                 <div className="flex-1">
                   <h3 className="font-bold text-sm">{goal.title}</h3>
                   <p className="text-xs text-muted">{doneCount}/{taskCount} steps</p>

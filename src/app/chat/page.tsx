@@ -159,7 +159,6 @@ export default function ChatPage() {
                       }}
                     >
                       <div className="flex items-center gap-2 mb-2">
-                        <span className="text-xl">{msg.proposedGoal.emoji}</span>
                         <h3 className="font-bold">{msg.proposedGoal.title}</h3>
                       </div>
 
