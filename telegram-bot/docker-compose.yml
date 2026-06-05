@@ -1,0 +1,12 @@
+services:
+  gaedhd-telegrambot:
+    build: .
+    image: gaedhd-telegrambot:latest
+    container_name: gaedhd-telegrambot
+    restart: unless-stopped
+    env_file: .env
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
