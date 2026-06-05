@@ -253,6 +253,17 @@ export function useStore() {
     }))
   }, [])
 
+  const deleteParkingLotItem = useCallback((id: string) => {
+    setState(prev => ({ ...prev, parkingLot: prev.parkingLot.filter(p => p.id !== id) }))
+  }, [])
+
+  const editParkingLotItem = useCallback((id: string, rawText: string) => {
+    setState(prev => ({
+      ...prev,
+      parkingLot: prev.parkingLot.map(p => p.id === id ? { ...p, rawText } : p),
+    }))
+  }, [])
+
   const completeTask = useCallback((taskId: string) => {
     setState(prev => {
       const updatedTasks = prev.microTasks.map(t =>
@@ -380,6 +391,8 @@ export function useStore() {
     addChatMessage,
     acceptProposedGoal,
     addParkingLotItem,
+    deleteParkingLotItem,
+    editParkingLotItem,
     completeTask,
     skipTask,
     editGoal,
