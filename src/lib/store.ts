@@ -69,8 +69,8 @@ export interface AppState {
 const DEFAULT_SETTINGS: AppSettings = {
   anthropicApiKey: '',
   userName: '',
-  wakeHour: 7,
-  sleepHour: 22,
+  wakeHour: 6.5, // 6:30am
+  sleepHour: 22, // 10:00pm
   transitionBufferMin: 3,
   calendarSources: [],
   userContext: '',
