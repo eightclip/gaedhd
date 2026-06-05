@@ -10,6 +10,10 @@ const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 export const STATE_TABLE = 'gaedhd_state'
 export const PRESENCE_TABLE = 'gaedhd_presence'
 export const INBOX_TABLE = 'gaedhd_inbox'
+// Last time a geofence arrival nudged a given room (per-room cooldown).
+export const ARRIVAL_LOG_TABLE = 'gaedhd_arrival_log'
+// Web push subscriptions (one row per device/browser she enables).
+export const PUSH_SUBS_TABLE = 'gaedhd_push_subs'
 
 export function getSupabaseAdmin() {
   if (!url || !serviceKey) {

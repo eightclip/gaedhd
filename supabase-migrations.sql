@@ -29,3 +29,23 @@ create table if not exists gaedhd_inbox (
 create index if not exists gaedhd_inbox_user_idx
   on gaedhd_inbox (user_email, processed, created_at);
 alter table gaedhd_inbox enable row level security;
+
+-- Per-room arrival cooldown. /api/arrive records when a geofence arrival last
+-- nudged each room so it doesn't re-buzz on geofence flapping (45 min cooldown).
+create table if not exists gaedhd_arrival_log (
+  user_email  text not null,
+  room        text not null,
+  notified_at timestamptz default now(),
+  primary key (user_email, room)
+);
+alter table gaedhd_arrival_log enable row level security;
+
+-- Web push subscriptions. One row per device/browser she enables in Settings.
+create table if not exists gaedhd_push_subs (
+  endpoint     text primary key,
+  user_email   text not null,
+  subscription jsonb not null,
+  created_at   timestamptz default now()
+);
+create index if not exists gaedhd_push_subs_user_idx on gaedhd_push_subs (user_email);
+alter table gaedhd_push_subs enable row level security;

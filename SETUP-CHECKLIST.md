@@ -57,15 +57,23 @@ MORNING_CHAT_ID=<her chat id>
 
 ## 3. Auto presence (Apple Shortcuts on her iPhone) — no hardware
 
-Shortcuts app → Automation → New Automation. Each set to run immediately (no confirm):
+Shortcuts app → Automation → New Automation. Each set to run immediately (no confirm).
+
+Two endpoints, on purpose:
+- `/api/here` just updates presence, silently. Use it for leaving.
+- `/api/arrive` updates presence AND sends a wrist nudge (Telegram + push) with her
+  one thing for that place. Use it for arrivals. It has a 45-min cooldown and respects
+  her wake/sleep quiet hours, so it never spams.
 
 - **Leave home** → action "Open URL" →
   `https://gaedhd.jmj.fyi/api/here?room=errands&token=<NOW_TOKEN>`
-- **Arrive home** → same URL, `room=home`
-- **Arrive at the gym address** → `room=gym`
-- **Arrive at Target / Trader Joe's** → `room=errands`
+- **Arrive home** → `https://gaedhd.jmj.fyi/api/arrive?room=home&token=<NOW_TOKEN>`
+- **Arrive at the gym address** → `https://gaedhd.jmj.fyi/api/arrive?room=gym&token=<NOW_TOKEN>`
+- **Arrive at Target / Trader Joe's** → `https://gaedhd.jmj.fyi/api/arrive?room=errands&token=<NOW_TOKEN>`
+- **Arrive at the school (after dropoff)** → `https://gaedhd.jmj.fyi/api/arrive?room=school&token=<NOW_TOKEN>`
 
-That makes "Out" and "at the gym" automatic, feeding the "while you're here" surfacing.
+That makes "Out" and "at the gym" automatic, feeds the "while you're here" surfacing,
+and buzzes her wrist with the right nudge the moment she gets there.
 
 ---
 
@@ -74,6 +82,19 @@ That makes "Out" and "at the gym" automatic, feeding the "while you're here" sur
 Vercel → the `gaedhd` project → Settings → Environment Variables. Confirm these exist:
 - `ALLOWED_EMAILS` = her email + yours (this is the access gate; if blank, the app is open).
 - `ANTHROPIC_API_KEY`, `GAEDHD_NOW_TOKEN`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`.
+
+For the wrist nudges on arrival (`/api/arrive` sends to both channels):
+- `TELEGRAM_BOT_TOKEN` = same value as the bot's `.env` (BotFather token).
+- `TELEGRAM_CHAT_ID` = her chat id (same as the bot's `NUDGE_CHAT_ID`).
+
+For web push (the "Notifications on this device" toggle in Settings). These are
+build-time for the public key, so set them, then redeploy:
+- `NEXT_PUBLIC_VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` (generate with
+  `npx web-push generate-vapid-keys`).
+- `VAPID_SUBJECT` = `mailto:eightclip@gmail.com` (optional, has a default).
+
+One-time DB step: run the two new tables at the bottom of `supabase-migrations.sql`
+(`gaedhd_arrival_log`, `gaedhd_push_subs`) in the GaeDHD Supabase SQL editor.
 
 ---
 
