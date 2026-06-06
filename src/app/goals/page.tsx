@@ -46,6 +46,7 @@ export default function GoalsPage() {
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null)
   const [editTitle, setEditTitle] = useState('')
   const [editCategory, setEditCategory] = useState<GoalCategory>('fitness')
+  const [savingEdit, setSavingEdit] = useState(false)
 
   // Delete confirm
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
@@ -111,13 +112,59 @@ export default function GoalsPage() {
     setEditCategory(goal.category)
   }
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editingGoal || !editTitle.trim()) return
-    store.editGoal(editingGoal.id, {
-      title: editTitle.trim(),
+    const goalId = editingGoal.id
+    const newTitle = editTitle.trim()
+    const titleChanged = newTitle !== editingGoal.title
+
+    store.editGoal(goalId, {
+      title: newTitle,
       category: editCategory,
       emoji: getCategoryEmoji(editCategory),
     })
+
+    // A more specific title deserves a matching breakdown — regenerate the steps.
+    if (titleChanged) {
+      setSavingEdit(true)
+      try {
+        const res = await fetch('/api/decompose', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            goal: newTitle,
+            category: editCategory,
+            lifeArea: editingGoal.lifeArea,
+            apiKey: store.settings.anthropicApiKey || undefined,
+            userContext: store.settings.userContext || undefined,
+          }),
+        })
+        const data = await res.json()
+        if (!data.error && data.microTasks?.length) {
+          const tasks: MicroTask[] = data.microTasks.map(
+            (t: { title: string; durationMin?: number; phase?: string; energyLevel?: string; cognitiveLoad?: string }, i: number) => ({
+              id: `mt-${Date.now()}-${i}`,
+              goalId,
+              title: t.title,
+              durationMin: t.durationMin ?? 10,
+              energyLevel: (t.energyLevel || 'medium') as MicroTask['energyLevel'],
+              context: 'anywhere' as const,
+              cognitiveLoad: (t.cognitiveLoad || 'light') as MicroTask['cognitiveLoad'],
+              toolsNeeded: [],
+              phase: t.phase || 'Step',
+              sequenceOrder: i + 1,
+              status: 'pending' as const,
+            })
+          )
+          store.replaceGoalTasks(goalId, tasks)
+          if (data.goal?.emoji) store.editGoal(goalId, { emoji: data.goal.emoji })
+        }
+      } catch {
+        // leave the existing steps in place if the rebuild fails
+      } finally {
+        setSavingEdit(false)
+      }
+    }
     setEditingGoal(null)
   }
 
@@ -256,9 +303,15 @@ export default function GoalsPage() {
                 type="text"
                 value={editTitle}
                 onChange={(e) => setEditTitle(e.target.value)}
-                className="w-full bg-muted-light rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 mb-4"
+                className="w-full bg-muted-light rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 mb-2"
                 autoFocus
               />
+              {editingGoal && editTitle.trim() !== editingGoal.title && (
+                <p className="text-[11px] text-muted mb-4 flex items-center gap-1.5">
+                  <Sparkles size={12} className="text-accent" /> Saving rebuilds the steps to match your new wording.
+                </p>
+              )}
+              {!(editingGoal && editTitle.trim() !== editingGoal.title) && <div className="mb-4" />}
 
               <p className="text-xs text-muted font-semibold mb-2">Category</p>
               <div className="flex flex-wrap gap-1.5 mb-5">
@@ -278,11 +331,21 @@ export default function GoalsPage() {
 
               <button
                 onClick={handleSaveEdit}
-                disabled={!editTitle.trim()}
+                disabled={!editTitle.trim() || savingEdit}
                 className="w-full py-3 bg-accent text-white rounded-2xl font-bold text-sm disabled:opacity-50 hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
               >
-                <Check size={16} />
-                Save changes
+                {savingEdit ? (
+                  <>
+                    <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}>
+                      <Sparkles size={16} />
+                    </motion.div>
+                    Rebuilding steps...
+                  </>
+                ) : editingGoal && editTitle.trim() !== editingGoal.title ? (
+                  <><Sparkles size={16} /> Save &amp; rebuild steps</>
+                ) : (
+                  <><Check size={16} /> Save changes</>
+                )}
               </button>
             </motion.div>
           </motion.div>

@@ -410,6 +410,17 @@ export function useStore() {
     }))
   }, [])
 
+  // Swap a goal's whole breakdown (used when she edits the goal to be more
+  // specific — the steps are regenerated to match). Resets progress since the
+  // steps are new.
+  const replaceGoalTasks = useCallback((goalId: string, newTasks: MicroTask[]) => {
+    setState(prev => ({
+      ...prev,
+      microTasks: [...newTasks, ...prev.microTasks.filter(t => t.goalId !== goalId)],
+      goals: prev.goals.map(g => g.id === goalId ? { ...g, progressPct: 0 } : g),
+    }))
+  }, [])
+
   const deleteGoal = useCallback((goalId: string) => {
     setState(prev => ({
       ...prev,
@@ -604,6 +615,7 @@ export function useStore() {
     completeTask,
     skipTask,
     editGoal,
+    replaceGoalTasks,
     deleteGoal,
     updateSettings,
     addCalendarSource,
