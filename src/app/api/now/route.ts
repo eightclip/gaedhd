@@ -1,9 +1,10 @@
 import { getSupabaseAdmin, supabaseConfigured, STATE_TABLE } from '@/lib/supabase-server'
-import type { Goal, MicroTask, CalendarEvent } from '@/lib/types'
+import type { Goal, MicroTask, CalendarEvent, ParkingLotItem, ImportantDate } from '@/lib/types'
 import type { CalendarSource } from '@/lib/store'
 import type { Ritual } from '@/lib/rituals'
 import { rankRituals, DEFAULT_RITUALS } from '@/lib/rituals'
-import { currentNextActions } from '@/lib/schedule'
+import { currentNextActions, availableActions } from '@/lib/schedule'
+import { upcomingDates } from '@/lib/dates'
 import { fetchEventsForSources } from '@/lib/ical'
 
 export const runtime = 'nodejs'
@@ -48,8 +49,9 @@ export async function GET(request: Request) {
     microTasks?: MicroTask[]
     rituals?: Ritual[]
     ritualLog?: Record<string, string[]>
+    parkingLot?: ParkingLotItem[]
     streak?: number
-    settings?: { calendarSources?: CalendarSource[]; wakeHour?: number; sleepHour?: number }
+    settings?: { calendarSources?: CalendarSource[]; wakeHour?: number; sleepHour?: number; importantDates?: ImportantDate[] }
   }
 
   const now = new Date()
@@ -62,18 +64,46 @@ export async function GET(request: Request) {
     ? { title: next.microTask.title, durationMin: next.microTask.durationMin, phase: next.microTask.phase, goal: next.goal.title, emoji: next.goal.emoji }
     : null
 
-  // Rituals due now (never expose private ones to a shared screen).
+  // Rituals (never expose private ones to a shared screen).
   const rituals = (state.rituals && state.rituals.length ? state.rituals : DEFAULT_RITUALS).filter(r => !r.private)
   const ritualLog = state.ritualLog ?? {}
-  const ritualsDue = rankRituals(rituals, ritualLog, now)
+  const statuses = rankRituals(rituals, ritualLog, now)
+  const ritualsDue = statuses
     .filter(s => s.due)
     .map(s => ({ id: s.ritual.id, title: s.ritual.title, emoji: s.ritual.emoji, nudge: s.ritual.nudge, tint: s.ritual.tint }))
+  // The whole rhythm, for the kiosk's at-a-glance row.
+  const rhythm = statuses.map(s => {
+    const c = s.ritual.cadence
+    const target = c.kind === 'timesPerDay' ? c.times : (c.kind === 'daily' || c.kind === 'dailyAt' || c.kind === 'everyDays' ? 1 : null)
+    return { id: s.ritual.id, title: s.ritual.title, emoji: s.ritual.emoji, tint: s.ritual.tint, due: s.due, doneToday: s.completedToday, target }
+  })
 
   // Today's wins.
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const startMs = startOfDay.getTime()
   const doneToday = microTasks.filter(t => t.status === 'completed' && t.completedAt && new Date(t.completedAt) >= startOfDay)
   const completedToday = doneToday.length
   const minutesToday = doneToday.reduce((sum, t) => sum + t.durationMin, 0)
+
+  // Water cups today (the Stanley-cup tracker).
+  const waterCount = (ritualLog['water'] ?? []).filter(t => new Date(t).getTime() >= startMs).length
+
+  // Up next: the next few small things she could grab (beyond "right now").
+  const pool = availableActions(goals, microTasks)
+  const upNext = pool.slice(0, 5).map(a => ({ title: a.microTask.title, goal: a.goal.title, durationMin: a.microTask.durationMin }))
+
+  // Her goals with progress, highest priority first.
+  const goalsOut = [...goals]
+    .sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0))
+    .slice(0, 6)
+    .map(g => ({ title: g.title, emoji: g.emoji, category: g.category, progressPct: g.progressPct }))
+
+  // Birthdays/anniversaries in the next two weeks.
+  const upcoming = upcomingDates(state.settings?.importantDates ?? [], now, 14)
+    .map(u => ({ label: u.date.label, daysUntil: u.daysUntil, kind: u.date.kind, years: u.years }))
+
+  // Stuff waiting in her dump.
+  const dumpCount = (state.parkingLot ?? []).length
 
   // Today's meetings (client passes its local day window to avoid timezone drift).
   const dayStart = params.get('start') ? new Date(params.get('start')!) : startOfDay
@@ -87,8 +117,14 @@ export async function GET(request: Request) {
 
   return Response.json({
     task,
-    pendingCount: currentNextActions(goals, microTasks).length,
+    pendingCount: pool.length,
     ritualsDue,
+    rhythm,
+    water: { count: waterCount, goal: 4 },
+    upNext,
+    goals: goalsOut,
+    upcoming,
+    dumpCount,
     streak: state.streak ?? 0,
     completedToday,
     minutesToday,
