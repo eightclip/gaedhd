@@ -2,8 +2,11 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Zap, MessageCircle, Target, ParkingMeter, TrendingUp, Settings } from 'lucide-react'
+import { Zap, MessageCircle, Target, ParkingMeter, TrendingUp, Settings, Send } from 'lucide-react'
 import { Illo } from './Illo'
+
+// Her Telegram bot. External link — opens Telegram (app or web) to @gaedhd_bot.
+const BOT_URL = 'https://t.me/gaedhd_bot'
 
 const tabs = [
   { href: '/', label: 'Today', icon: Zap },
@@ -44,6 +47,16 @@ export function SideNav() {
             </Link>
           )
         })}
+
+        <a
+          href={BOT_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors text-[#8A8580] hover:text-[#C8C0B8] hover:bg-white/5"
+        >
+          <Send size={18} />
+          <span className="text-sm font-semibold">Bot</span>
+        </a>
       </div>
 
       <Link
