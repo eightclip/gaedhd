@@ -80,7 +80,7 @@ export default function KioskPage() {
   const freeNow = !currentMeeting && !data?.task
 
   return (
-    <div className="min-h-screen w-full p-[3vw] flex flex-col gap-[2vw]">
+    <div className="h-screen w-screen overflow-hidden p-[2.5vw] flex flex-col gap-[1.5vw]">
       {/* Brand */}
       <div className="flex items-center gap-[1vw]">
         <Illo src="/avatar.png" alt="" className="h-[4vw] w-auto rounded-[1vw]" />
@@ -102,7 +102,7 @@ export default function KioskPage() {
       </div>
 
       {/* Bento grid */}
-      <div className="flex-1 grid grid-cols-3 grid-rows-2 gap-[2vw]">
+      <div className="flex-1 min-h-0 grid grid-cols-3 grid-rows-2 gap-[1.5vw]">
         {/* Right now (the one thing) — spans 2 cols */}
         <div className="col-span-2 rounded-[2vw] bg-today-tint p-[2.5vw] flex flex-col justify-between">
           <p className="font-mono text-[1.3vw] uppercase tracking-widest text-today-ink/70">
