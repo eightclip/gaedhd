@@ -261,15 +261,103 @@ export function useStore() {
   }, [])
 
   const addParkingLotItem = useCallback((text: string) => {
+    setState(prev => {
+      // Dedup: if the exact text is already in the dump, don't add it again
+      // (the inbox-drain can re-run on remounts).
+      if (prev.parkingLot.some(p => p.rawText === text)) return prev
+      return {
+        ...prev,
+        parkingLot: [{
+          id: `pl-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          rawText: text,
+          processed: false,
+          status: 'processing' as const, // the page kicks off the AI breakdown
+          createdAt: new Date().toISOString(),
+        }, ...prev.parkingLot],
+      }
+    })
+  }, [])
+
+  // Fill in the AI breakdown once it's computed (status -> 'ready' | 'error').
+  const setDumpBreakdown = useCallback((id: string, patch: Partial<ParkingLotItem>) => {
     setState(prev => ({
       ...prev,
-      parkingLot: [{
-        id: `pl-${Date.now()}`,
-        rawText: text,
-        processed: false,
-        createdAt: new Date().toISOString(),
-      }, ...prev.parkingLot],
+      parkingLot: prev.parkingLot.map(p => p.id === id ? { ...p, ...patch } : p),
     }))
+  }, [])
+
+  const updateDumpStep = useCallback((itemId: string, stepId: string, title: string) => {
+    setState(prev => ({
+      ...prev,
+      parkingLot: prev.parkingLot.map(p => p.id === itemId
+        ? { ...p, steps: (p.steps ?? []).map(s => s.id === stepId ? { ...s, title } : s) }
+        : p),
+    }))
+  }, [])
+
+  const removeDumpStep = useCallback((itemId: string, stepId: string) => {
+    setState(prev => ({
+      ...prev,
+      parkingLot: prev.parkingLot.map(p => p.id === itemId
+        ? { ...p, steps: (p.steps ?? []).filter(s => s.id !== stepId) }
+        : p),
+    }))
+  }, [])
+
+  const addDumpStep = useCallback((itemId: string, title: string) => {
+    setState(prev => ({
+      ...prev,
+      parkingLot: prev.parkingLot.map(p => p.id === itemId
+        ? { ...p, steps: [...(p.steps ?? []), { id: `step-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, title }] }
+        : p),
+    }))
+  }, [])
+
+  const reprocessDumpItem = useCallback((id: string) => {
+    setState(prev => ({
+      ...prev,
+      parkingLot: prev.parkingLot.map(p => p.id === id ? { ...p, status: 'processing' as const, steps: undefined } : p),
+    }))
+  }, [])
+
+  // The spark: turn a ready dump (with her edited steps) into a real goal whose
+  // tasks flow into her day, and remove it from the dump.
+  const promoteDumpToGoal = useCallback((id: string) => {
+    setState(prev => {
+      const item = prev.parkingLot.find(p => p.id === id)
+      if (!item || !item.steps?.length) return prev
+      const goalId = `goal-${Date.now()}`
+      const newGoal: Goal = {
+        id: goalId,
+        title: item.title || (item.rawText.length > 60 ? `${item.rawText.slice(0, 57)}…` : item.rawText),
+        description: '',
+        category: 'custom',
+        lifeArea: 'personal',
+        priority: 3,
+        progressPct: 0,
+        createdAt: new Date().toISOString(),
+        emoji: item.emoji || '✨',
+      }
+      const newTasks: MicroTask[] = item.steps.map((s, i) => ({
+        id: `mt-${Date.now()}-${i}`,
+        goalId,
+        title: s.title,
+        durationMin: s.durationMin ?? 10,
+        energyLevel: 'medium',
+        context: 'anywhere' as const,
+        cognitiveLoad: 'light' as const,
+        toolsNeeded: [],
+        phase: 'Step',
+        sequenceOrder: i + 1,
+        status: 'pending' as const,
+      }))
+      return {
+        ...prev,
+        goals: [newGoal, ...prev.goals],
+        microTasks: [...newTasks, ...prev.microTasks],
+        parkingLot: prev.parkingLot.filter(p => p.id !== id),
+      }
+    })
   }, [])
 
   const deleteParkingLotItem = useCallback((id: string) => {
@@ -507,6 +595,12 @@ export function useStore() {
     addParkingLotItem,
     deleteParkingLotItem,
     editParkingLotItem,
+    setDumpBreakdown,
+    updateDumpStep,
+    removeDumpStep,
+    addDumpStep,
+    reprocessDumpItem,
+    promoteDumpToGoal,
     completeTask,
     skipTask,
     editGoal,
