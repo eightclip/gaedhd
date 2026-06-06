@@ -132,12 +132,24 @@ export interface ImportantDate {
 }
 
 // ─── Parking Lot ────────────────────────────────────────────────
+// One bite-size step in a dump's AI breakdown. Editable by her before she sparks it.
+export interface DumpStep {
+  id: string
+  title: string
+  durationMin?: number
+}
+
 export interface ParkingLotItem {
   id: string
   rawText: string
   processed: boolean
   createdGoalId?: string
   createdAt: string
+  // The moment it lands, the AI breaks it into bite-size steps she can see + edit.
+  status?: 'processing' | 'ready' | 'error'
+  steps?: DumpStep[]
+  title?: string   // AI's short title for the eventual goal
+  emoji?: string
 }
 
 // ─── Timeline ───────────────────────────────────────────────────
