@@ -24,7 +24,7 @@ import { categoryIcon, BREAK_ICON } from '@/lib/icons'
 import { categoryColors } from '@/lib/mock-data'
 import type { CalendarEvent, TimelineItem } from '@/lib/types'
 import { useStore } from '@/lib/store'
-import { computeGaps, slotTasks, currentNextActions, materializeFixedBlocks, ymd } from '@/lib/schedule'
+import { computeGaps, slotTasks, currentNextActions, availableActions, materializeFixedBlocks, ymd } from '@/lib/schedule'
 import { ProgressRing } from './ProgressRing'
 
 // Quick timed breaks. Snack/bathroom prompt a water refill since she's already up.
@@ -120,8 +120,12 @@ export function TodayView() {
     if (store.loaded) store.queueBirthdayPrep(new Date())
   }, [store.loaded, store.queueBirthdayPrep])
 
+  // currentNextActions = one step per goal (used for room/presence matching).
+  // availableActions = the fuller pool (flexible goals offer all their steps),
+  // which is what fills her day and the "Just do this" stack.
   const nextActions = currentNextActions(store.goals, store.microTasks)
-  const topTasks = nextActions.slice(0, 5)
+  const available = availableActions(store.goals, store.microTasks)
+  const topTasks = available.slice(0, 5)
 
   // Her real anchors (school runs, gym) become hard blocks the day schedules around.
   const fixedEvents = materializeFixedBlocks(store.settings.fixedBlocks, now)
@@ -137,7 +141,7 @@ export function TodayView() {
   const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), wh, wm, 0)
   const dayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), sh, sm, 0)
   const gaps = computeGaps(allEvents, dayStart, dayEnd)
-  const scheduled = slotTasks(gaps, nextActions, now, store.settings.transitionBufferMin)
+  const scheduled = slotTasks(gaps, available, now, store.settings.transitionBufferMin)
 
   const timeline: TimelineItem[] = [
     ...allEvents.map(e => ({ sortTime: e.startTime, item: { type: 'event' as const, data: e } })),

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Check, SkipForward, Clock, Target } from 'lucide-react'
+import { Check, SkipForward, Clock, Target, Pause } from 'lucide-react'
 import type { TaskWithGoal } from '@/lib/types'
 import { categoryColors } from '@/lib/mock-data'
 import { ConfettiPop } from './ConfettiPop'
@@ -14,15 +14,18 @@ interface JustDoThisCardProps {
   tasks: TaskWithGoal[]
   onComplete?: (taskId: string) => void
   onSkip?: (taskId: string) => void
+  onPause?: (taskId: string) => void
 }
 
-export function JustDoThisCard({ tasks, onComplete, onSkip }: JustDoThisCardProps) {
+export function JustDoThisCard({ tasks, onComplete, onSkip, onPause }: JustDoThisCardProps) {
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set())
+  const [pausedIds, setPausedIds] = useState<Set<string>>(new Set())
   const [timeLeft, setTimeLeft] = useState(0)
   const [showConfetti, setShowConfetti] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
 
-  const activeTasks = tasks.filter(t => !completedIds.has(t.id))
+  // Paused tasks step aside for now but stay pending — they come back later.
+  const activeTasks = tasks.filter(t => !completedIds.has(t.id) && !pausedIds.has(t.id))
   const currentTask = activeTasks[0]
   const totalDone = completedIds.size
 
@@ -37,6 +40,14 @@ export function JustDoThisCard({ tasks, onComplete, onSkip }: JustDoThisCardProp
     setCompletedIds(prev => new Set(prev).add(currentTask.id))
     onSkip?.(currentTask.microTask.id)
   }, [currentTask, onSkip])
+
+  // Pause: set this one aside for later. It stays pending (not done, not skipped)
+  // so it comes back around — for when a quick task is running long.
+  const handlePause = useCallback(() => {
+    if (!currentTask) return
+    setPausedIds(prev => new Set(prev).add(currentTask.id))
+    onPause?.(currentTask.microTask.id)
+  }, [currentTask, onPause])
 
   useEffect(() => {
     if (!currentTask || timeLeft <= 0) return
@@ -136,6 +147,14 @@ export function JustDoThisCard({ tasks, onComplete, onSkip }: JustDoThisCardProp
               </div>
 
               <div className="flex items-center gap-2">
+                <button
+                  onClick={handlePause}
+                  className="p-3 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                  aria-label="Pause for later"
+                  title="Running long? Pause it for later"
+                >
+                  <Pause size={18} />
+                </button>
                 <button
                   onClick={handleSkip}
                   className="p-3 rounded-full bg-white/10 hover:bg-white/20 transition-colors"

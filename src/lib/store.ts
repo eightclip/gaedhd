@@ -337,6 +337,7 @@ export function useStore() {
         progressPct: 0,
         createdAt: new Date().toISOString(),
         emoji: item.emoji || '✨',
+        sequential: item.sequential === true,
       }
       const newTasks: MicroTask[] = item.steps.map((s, i) => ({
         id: `mt-${Date.now()}-${i}`,

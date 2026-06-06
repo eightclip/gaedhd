@@ -7,11 +7,21 @@ Respond ONLY with valid JSON — no extra text, no markdown fences:
 {
   "title": "Short title (4-6 words max)",
   "emoji": "one relevant emoji",
+  "sequential": false,
   "tasks": [
     {"title": "The concrete next action", "durationMin": 10, "phase": "Step", "energyLevel": "low", "cognitiveLoad": "light"},
     ...
   ]
 }
+
+About "sequential":
+- Set true ONLY when each step truly depends on the one before it, so they MUST be
+  done in order (e.g. "call the painter" -> "get the quote" -> "schedule" -> "paint").
+- Set false (default, most goals) when the steps are independent moments that can be
+  sprinkled across her day in any order and interleaved with other goals
+  (e.g. "make appointments for Bucky" -> call the vet / call the groomer / book the
+  trim; or "practice Spanish" -> 10 words / one lesson / watch a clip). Most goals
+  are false. When in doubt choose false so her day fills with small wins.
 
 How to break it down:
 - Produce 3-8 steps, IN ORDER. tasks[0] is the very first thing to do right now.
@@ -80,7 +90,7 @@ export async function POST(request: NextRequest) {
 
       try {
         const parsed = JSON.parse(text)
-        return Response.json({ goal: { title: parsed.title, emoji: parsed.emoji }, microTasks: parsed.tasks })
+        return Response.json({ goal: { title: parsed.title, emoji: parsed.emoji }, sequential: parsed.sequential === true, microTasks: parsed.tasks })
       } catch {
         return Response.json({ error: 'Could not parse Claude response' }, { status: 500 })
       }
@@ -94,8 +104,11 @@ export async function POST(request: NextRequest) {
 
   // No API key — use smart mock decomposition
   const mockTasks = generateMockDecomposition(goal, category)
+  // Appointment/scheduling-style goals depend on order; most others don't.
+  const mockSequential = /paint|plumb|contractor|dentist|doctor|appointment|repair|fix|install|schedul|book|quote|mechanic|haircut|vet|electrician|handyman|inspect/i.test(goal)
   return Response.json({
     goal: { title: goal, emoji: getCategoryEmoji(category) },
+    sequential: mockSequential,
     microTasks: mockTasks,
   })
 }
