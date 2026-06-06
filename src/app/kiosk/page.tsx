@@ -31,6 +31,7 @@ export default function KioskPage() {
   const [data, setData] = useState<KioskData | null>(null)
   const [token, setToken] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [shift, setShift] = useState({ x: 0, y: 0 })
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -40,6 +41,18 @@ export default function KioskPage() {
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000)
     return () => clearInterval(id)
+  }, [])
+
+  // Anti burn-in: the live clock already changes pixels every second, and on top
+  // of that we nudge the whole UI a few px on a slow cycle so nothing static sits
+  // on the exact same pixels all day. Imperceptible at 10 feet. Plus a full reload
+  // every few hours for resilience.
+  useEffect(() => {
+    const steps = [[0, 0], [4, 2], [6, 0], [3, 4], [0, 6], [-3, 3], [-6, 0], [-3, -3]]
+    let i = 0
+    const shiftId = setInterval(() => { i = (i + 1) % steps.length; setShift({ x: steps[i][0], y: steps[i][1] }) }, 60_000)
+    const reloadId = setInterval(() => window.location.reload(), 4 * 3_600_000)
+    return () => { clearInterval(shiftId); clearInterval(reloadId) }
   }, [])
 
   const load = useCallback(() => {
@@ -88,7 +101,8 @@ export default function KioskPage() {
   const label = (t: string) => <p className="font-mono text-[0.95vw] uppercase tracking-[0.2em] text-muted">{t}</p>
 
   return (
-    <div className="h-screen w-screen overflow-hidden p-[1.8vw] flex flex-col gap-[1.2vw] text-foreground">
+    <div className="h-screen w-screen overflow-hidden p-[1.8vw] flex flex-col gap-[1.2vw] text-foreground"
+      style={{ transform: `translate(${shift.x}px, ${shift.y}px)`, transition: 'transform 3s ease-in-out' }}>
       {/* Top bar: brand + date, and the clock */}
       <header className="flex items-end justify-between shrink-0">
         <div className="flex items-center gap-[1vw]">
