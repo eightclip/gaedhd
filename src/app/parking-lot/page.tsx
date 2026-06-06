@@ -227,7 +227,7 @@ export default function ParkingLotPage() {
           const steps: DumpStep[] = raw.map((t: { title: string; durationMin?: number }, i: number) => ({
             id: `step-${Date.now()}-${i}`, title: t.title, durationMin: t.durationMin ?? 10,
           }))
-          store.setDumpBreakdown(item.id, { status: 'ready', steps, emoji: data.goal?.emoji, title: data.goal?.title })
+          store.setDumpBreakdown(item.id, { status: 'ready', steps, emoji: data.goal?.emoji, title: data.goal?.title, sequential: data.sequential === true })
         })
         .catch(() => store.setDumpBreakdown(item.id, { status: 'error' }))
         .finally(() => processing.current.delete(item.id))

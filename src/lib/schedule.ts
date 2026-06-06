@@ -71,6 +71,23 @@ export function currentNextActions(goals: Goal[], microTasks: MicroTask[]): Task
     .sort((a, b) => b.goal.priority - a.goal.priority)
 }
 
+// Everything she could pick up right now. A flexible goal (sequential === false)
+// offers ALL its pending steps — they can be sprinkled across the day in any order.
+// A sequential goal (or a legacy goal with no flag) offers only its current step,
+// so dependency chains stay in order. This is the pool the day gets filled from.
+export function availableActions(goals: Goal[], microTasks: MicroTask[]): TaskWithGoal[] {
+  const pool: TaskWithGoal[] = []
+  for (const goal of goals) {
+    const pending = microTasks
+      .filter(t => t.goalId === goal.id && t.status === 'pending')
+      .sort((a, b) => a.sequenceOrder - b.sequenceOrder)
+    if (pending.length === 0) continue
+    const offered = goal.sequential === false ? pending : pending.slice(0, 1)
+    for (const t of offered) pool.push({ id: t.id, microTask: t, goal })
+  }
+  return pool.sort((a, b) => b.goal.priority - a.goal.priority)
+}
+
 function classify(min: number): GapSize {
   if (min < 15) return 'micro'
   if (min < 30) return 'small'
@@ -128,37 +145,64 @@ export function computeGaps(
   return gaps
 }
 
-// Greedily fit pending tasks (already sorted by priority) into future gaps.
+// Fill her real gaps with small tasks from the pool. Each gap gets whatever
+// actually FITS the time left (a 5-min window gets a 5-min task), and we spread
+// across goals so it's not the same goal five times in a row — unless that's all
+// that fits. Sequential goals only ever offer their current step, so order holds.
 export function slotTasks(
   gaps: ScheduleGap[],
-  pending: TaskWithGoal[],
+  pool: TaskWithGoal[],
   now: Date,
   bufferMin = 0
 ): ScheduledTask[] {
   const scheduled: ScheduledTask[] = []
-  const queue = [...pending]
+  const remaining = [...pool]
+  const placedByGoal: Record<string, number> = {} // spread work across goals
   const nowMs = now.getTime()
 
   for (const gap of gaps) {
     const gapEnd = new Date(gap.endTime).getTime()
     if (gapEnd <= nowMs) continue // gap already passed
     let cursor = Math.max(new Date(gap.startTime).getTime(), nowMs)
+    let lastGoalId: string | null = null
 
-    while (queue.length) {
-      const next = queue[0]
-      const durMs = next.microTask.durationMin * 60000
-      if (cursor + durMs > gapEnd) break // doesn't fit this gap
+    // Keep placing while something still fits the time left in this gap.
+    for (;;) {
+      const availMin = Math.floor((gapEnd - cursor) / 60000)
+      if (availMin < 1) break
+      const fits = remaining.filter(t => t.microTask.durationMin <= availMin)
+      if (fits.length === 0) break
+
+      fits.sort((a, b) => {
+        // 1. variety within this gap: prefer a different goal than the last one
+        const av = a.goal.id !== lastGoalId ? 0 : 1
+        const bv = b.goal.id !== lastGoalId ? 0 : 1
+        if (av !== bv) return av - bv
+        // 2. spread across the day: goals with fewer placed tasks first
+        const ac = placedByGoal[a.goal.id] ?? 0
+        const bc = placedByGoal[b.goal.id] ?? 0
+        if (ac !== bc) return ac - bc
+        // 3. higher-priority goals
+        if (b.goal.priority !== a.goal.priority) return b.goal.priority - a.goal.priority
+        // 4. use the time well — the longest task that still fits
+        return b.microTask.durationMin - a.microTask.durationMin
+      })
+
+      const pick = fits[0]
+      const durMs = pick.microTask.durationMin * 60000
       scheduled.push({
-        id: `st-${next.microTask.id}`,
-        microTask: next.microTask,
-        goal: next.goal,
+        id: `st-${pick.microTask.id}`,
+        microTask: pick.microTask,
+        goal: pick.goal,
         gap,
         scheduledStart: new Date(cursor).toISOString(),
         scheduledEnd: new Date(cursor + durMs).toISOString(),
         status: 'pending',
       })
       cursor += durMs + bufferMin * 60000
-      queue.shift()
+      lastGoalId = pick.goal.id
+      placedByGoal[pick.goal.id] = (placedByGoal[pick.goal.id] ?? 0) + 1
+      remaining.splice(remaining.indexOf(pick), 1)
     }
   }
 

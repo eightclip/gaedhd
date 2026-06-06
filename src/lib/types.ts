@@ -59,6 +59,9 @@ export interface Goal {
   progressPct: number
   createdAt: string
   emoji: string
+  // false = steps are independent and can be sprinkled across the day in any order.
+  // true/undefined = steps depend on each other; only the current one is available.
+  sequential?: boolean
 }
 
 // ─── Micro-Tasks ────────────────────────────────────────────────
@@ -150,6 +153,7 @@ export interface ParkingLotItem {
   steps?: DumpStep[]
   title?: string   // AI's short title for the eventual goal
   emoji?: string
+  sequential?: boolean // do the steps have to be done in order?
 }
 
 // ─── Timeline ───────────────────────────────────────────────────

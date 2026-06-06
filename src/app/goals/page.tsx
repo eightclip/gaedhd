@@ -79,6 +79,7 @@ export default function GoalsPage() {
           progressPct: 0,
           createdAt: new Date().toISOString(),
           emoji: data.goal.emoji || getCategoryEmoji(selectedCategory),
+          sequential: data.sequential === true,
         }
         const newTasks: MicroTask[] = (data.microTasks || []).map(
           (t: { title: string; durationMin: number; phase: string; energyLevel: string; cognitiveLoad: string }, i: number) => ({
@@ -157,7 +158,7 @@ export default function GoalsPage() {
             })
           )
           store.replaceGoalTasks(goalId, tasks)
-          if (data.goal?.emoji) store.editGoal(goalId, { emoji: data.goal.emoji })
+          store.editGoal(goalId, { sequential: data.sequential === true, ...(data.goal?.emoji ? { emoji: data.goal.emoji } : {}) })
         }
       } catch {
         // leave the existing steps in place if the rebuild fails
