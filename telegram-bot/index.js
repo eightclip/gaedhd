@@ -232,21 +232,58 @@ bot.command("today", async (ctx) => {
 });
 
 // ---------------------------------------------------------------------------
-// Plain text messages → capture to inbox
+// Plain text messages → a real conversation. She chats like she would with a
+// person; the bot only adds to her list when she actually asks it to (via the
+// add_to_list tool). No AI key configured? Fall back to dumb capture so nothing
+// is ever lost.
 // ---------------------------------------------------------------------------
-bot.on("message:text", async (ctx) => {
-  // Skip if it looks like a command (already handled above)
-  if (ctx.message.text.startsWith("/")) return;
+const chatHistories = new Map(); // chatId -> [{role, content}] of clean text turns
+const MAX_TURNS = 12; // keep the last ~6 exchanges in context
 
+bot.on("message:text", async (ctx) => {
+  if (ctx.message.text.startsWith("/")) return;
   const raw_text = ctx.message.text.trim();
   if (!raw_text) return;
 
+  // No AI key: keep the old behavior so her thoughts still land somewhere.
+  if (!ANTHROPIC_API_KEY) {
+    try {
+      await postInbox(raw_text);
+      await ctx.reply("Added to your list ✓");
+    } catch (err) {
+      console.error("[capture:text] Error:", err.message);
+      await ctx.reply("Couldn't add that right now. Try again in a moment.");
+    }
+    return;
+  }
+
+  const chatId = ctx.chat.id;
+  const history = chatHistories.get(chatId) ?? [];
+
+  // Build a working copy for this turn (includes tool rounds); only the clean
+  // text turns get persisted back, so history never holds orphan tool blocks.
+  const working = [...history, { role: "user", content: raw_text }];
+
   try {
-    await postInbox(raw_text);
-    await ctx.reply("Added to your list ✓");
+    await ctx.replyWithChatAction("typing").catch(() => {});
+    const { reply } = await converse(working);
+
+    history.push({ role: "user", content: raw_text });
+    history.push({ role: "assistant", content: reply });
+    if (history.length > MAX_TURNS) history.splice(0, history.length - MAX_TURNS);
+    while (history.length && history[0].role !== "user") history.shift();
+    chatHistories.set(chatId, history);
+
+    await ctx.reply(reply || "👍");
   } catch (err) {
-    console.error("[capture:text] Error:", err.message);
-    await ctx.reply("Couldn't add that right now. Try again in a moment.");
+    console.error("[chat] Error:", err.message);
+    // Don't lose her thought — capture it and tell her honestly.
+    try {
+      await postInbox(raw_text);
+      await ctx.reply("I had a hiccup, but I saved that to your list ✓");
+    } catch {
+      await ctx.reply("Sorry, I glitched for a second. Try that again?");
+    }
   }
 });
 
@@ -435,6 +472,120 @@ async function postInbox(raw_text) {
   }
 }
 
+// Claude model for the chat + photo features. Sonnet 4.6 is the speed/quality
+// balance — fast enough for a snappy texting feel. Bump to "claude-opus-4-8"
+// if you ever want more depth at the cost of latency.
+const MODEL = "claude-sonnet-4-6";
+
+const CHAT_SYSTEM = `You are Gaelyn's warm, encouraging personal assistant living inside GaeDHD, her ADHD second-brain app. Talk like a real person texting a close friend: short, kind, a little playful, genuinely on her side. You believe in her and you make her feel capable.
+
+You can add things to her to-do list, but ONLY when she actually asks you to — phrasings like "add X", "remind me to Y", "put Z on my list", "I need to ...", "don't let me forget ...". When she is just chatting, venting, thinking out loud, or asking a question, simply talk with her. Do NOT capture anything to her list unless she is clearly asking you to.
+
+When she does ask, call add_to_list with the cleaned-up item(s), then confirm warmly in one short line.
+
+Keep replies short, like a text message. No long paragraphs, no bullet lists unless she asks for one.`;
+
+const CHAT_TOOLS = [
+  {
+    name: "add_to_list",
+    description:
+      "Add one or more to-do items to Gaelyn's list. ONLY call this when she explicitly asks to capture a task (e.g. 'add ...', 'remind me to ...', 'put ... on my list', 'I need to ...'). Do NOT call it for general conversation, questions, greetings, or venting.",
+    input_schema: {
+      type: "object",
+      properties: {
+        items: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "The task(s) to add, each a short imperative phrase, e.g. 'Call the dentist'.",
+        },
+      },
+      required: ["items"],
+    },
+  },
+];
+
+/** One call to the Anthropic Messages API with the chat system prompt + tools. */
+async function callClaude(messages) {
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": ANTHROPIC_API_KEY,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      max_tokens: 1024,
+      system: CHAT_SYSTEM,
+      tools: CHAT_TOOLS,
+      messages,
+    }),
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "(no body)");
+    throw new Error(`Anthropic API ${res.status}: ${body}`);
+  }
+  return res.json();
+}
+
+/**
+ * Runs the tool-use loop for one user turn. Mutates `messages` with the
+ * assistant/tool rounds. Executes add_to_list by posting to her inbox.
+ * Returns { reply, added }.
+ */
+async function converse(messages) {
+  const added = [];
+  for (let safety = 0; safety < 5; safety++) {
+    const data = await callClaude(messages);
+    messages.push({ role: "assistant", content: data.content });
+
+    if (data.stop_reason === "tool_use") {
+      const results = [];
+      for (const block of data.content) {
+        if (block.type !== "tool_use") continue;
+        if (block.name === "add_to_list") {
+          const items = Array.isArray(block.input?.items) ? block.input.items : [];
+          const ok = [];
+          for (const item of items) {
+            try {
+              await postInbox(String(item));
+              ok.push(item);
+              added.push(item);
+            } catch (err) {
+              console.error("[chat] postInbox error:", err.message);
+            }
+          }
+          results.push({
+            type: "tool_result",
+            tool_use_id: block.id,
+            content: ok.length ? `Added: ${ok.join(", ")}` : "Could not add those right now.",
+            is_error: ok.length === 0,
+          });
+        } else {
+          results.push({
+            type: "tool_result",
+            tool_use_id: block.id,
+            content: "Unknown tool.",
+            is_error: true,
+          });
+        }
+      }
+      messages.push({ role: "user", content: results });
+      continue; // loop again so Claude can give a final reply
+    }
+
+    const reply = data.content
+      .filter((b) => b.type === "text")
+      .map((b) => b.text)
+      .join("")
+      .trim();
+    return { reply, added };
+  }
+  return { reply: "Sorry, I got a little tangled up there. Say that again?", added };
+}
+
 /**
  * Downloads a Telegram photo by file_id and returns it as a base64 string.
  * Uses the Telegram Bot API getFile + direct CDN URL pattern.
@@ -467,7 +618,7 @@ async function downloadTelegramPhoto(fileId) {
  */
 async function extractTodosFromImage(imageBase64) {
   const payload = {
-    model: "claude-sonnet-4-20250514",
+    model: MODEL,
     max_tokens: 1024,
     messages: [
       {
