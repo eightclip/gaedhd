@@ -21,7 +21,8 @@ export type TaskContext =
   | 'studio'
   | 'kitchen'
   | 'bedroom'
-  | 'backyard'
+  | 'living_room'
+  | 'yard'
   | 'gym'
   | 'car'
   | 'errands'
@@ -154,6 +155,20 @@ export interface ParkingLotItem {
   title?: string   // AI's short title for the eventual goal
   emoji?: string
   sequential?: boolean // do the steps have to be done in order?
+}
+
+// ─── Spot Tasks ─────────────────────────────────────────────────
+// A one-line task tied to a place ("water the plants in the yard"). Captured by
+// the bot or the app and surfaced + nudged when she's physically in that room.
+// Lives in its own Supabase table (gaedhd_spot_tasks), NOT the synced state blob,
+// so async writers (the Telegram bot) never clobber her state.
+export interface SpotTask {
+  id: string
+  title: string
+  room: string // a room slug: office/kitchen/bedroom/living_room/yard/…
+  emoji?: string
+  createdAt: string
+  done?: boolean
 }
 
 // ─── Timeline ───────────────────────────────────────────────────

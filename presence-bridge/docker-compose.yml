@@ -1,0 +1,15 @@
+services:
+  gaedhd-presence-bridge:
+    build: .
+    image: gaedhd-presence-bridge:latest
+    container_name: gaedhd-presence-bridge
+    restart: unless-stopped
+    # Host networking so it can reach the Mosquitto container's host-published
+    # 1883 port directly (QNAP's docker bridge can't hairpin to host ports).
+    network_mode: host
+    env_file: .env
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"

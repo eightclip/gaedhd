@@ -113,7 +113,7 @@ You flash directly from the browser using Web Serial. No toolchain, no Arduino I
 
 1. Use **Chrome or Edge on a laptop** (Web Serial is required; Safari and Firefox will not work). A Mac is fine for flashing even though the Mac mini lives in the closet — flashing is a one-time bench task.
 2. Plug one ESP32-WROOM-32 into the laptop with a **data-capable USB cable** (many cheap cables are charge-only — if the board does not appear, swap the cable first).
-3. Go to **https://espresense.com/getting_started** and click the web installer / "Connect" button.
+3. Go to **https://espresense.com/firmware/** and click the embedded web installer / "Connect" button. (The old `/getting_started` URL 404s.)
 4. In the serial-port dialog, pick the board. If nothing shows up:
    - Install the **CP2102** or **CH340** USB-serial driver (depends on which USB chip your 6-pack uses — most WROOM-32 dev boards are CP2102).
    - On the board, hold **BOOT**, tap **EN/RST**, release BOOT, then retry.
@@ -124,7 +124,7 @@ You flash directly from the browser using Web Serial. No toolchain, no Arduino I
 
 On first boot (and any time it can't reach saved WiFi) ESPresense starts its own WiFi access point.
 
-1. On your phone, join the WiFi network named **`espresense-xxxx`**.
+1. On your phone, join the WiFi network named **`ESPresense-xxxx`**.
 2. A captive portal opens (if not, browse to `http://192.168.4.1`). Enter:
    - **WiFi SSID + password** for the house network.
 3. The node reboots onto your WiFi. Find its IP (check your router's client list or your QNAP's DHCP table) and open `http://<node-ip>/` for the full settings page. Set:

@@ -430,6 +430,50 @@ export function useStore() {
     }))
   }, [])
 
+  // She knocked out the whole goal in one swoop. Mark every remaining step done,
+  // which pulls them out of the day's pool so the rest of the time refills around
+  // what's left. Recoverable via reopenGoal.
+  const completeGoal = useCallback((goalId: string) => {
+    setState(prev => {
+      const now = new Date().toISOString()
+      let newlyDone = 0
+      const updatedTasks = prev.microTasks.map(t => {
+        if (t.goalId === goalId && t.status !== 'completed') {
+          newlyDone++
+          return { ...t, status: 'completed' as const, completedAt: now }
+        }
+        return t
+      })
+      return {
+        ...prev,
+        microTasks: updatedTasks,
+        goals: prev.goals.map(g => g.id === goalId ? { ...g, progressPct: 100 } : g),
+        tasksCompletedToday: prev.tasksCompletedToday + newlyDone,
+      }
+    })
+  }, [])
+
+  // Undo a completed goal (mis-tap or "actually, not done"): every step back to
+  // pending so the goal flows into her day again.
+  const reopenGoal = useCallback((goalId: string) => {
+    setState(prev => {
+      let reverted = 0
+      const updatedTasks = prev.microTasks.map(t => {
+        if (t.goalId === goalId && t.status === 'completed') {
+          reverted++
+          return { ...t, status: 'pending' as const, completedAt: undefined }
+        }
+        return t
+      })
+      return {
+        ...prev,
+        microTasks: updatedTasks,
+        goals: prev.goals.map(g => g.id === goalId ? { ...g, progressPct: 0 } : g),
+        tasksCompletedToday: Math.max(0, prev.tasksCompletedToday - reverted),
+      }
+    })
+  }, [])
+
   const updateSettings = useCallback((updates: Partial<AppSettings>) => {
     setState(prev => ({
       ...prev,
@@ -618,6 +662,8 @@ export function useStore() {
     editGoal,
     replaceGoalTasks,
     deleteGoal,
+    completeGoal,
+    reopenGoal,
     updateSettings,
     addCalendarSource,
     removeCalendarSource,

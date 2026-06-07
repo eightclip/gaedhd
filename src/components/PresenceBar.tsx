@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { MapPin, Check, Palette, Briefcase, Coffee, Moon, Leaf, Dumbbell, Car, Sparkles, type LucideIcon } from 'lucide-react'
-import type { TaskWithGoal } from '@/lib/types'
+import { MapPin, Check, Palette, Briefcase, Coffee, Moon, Sofa, Leaf, Dumbbell, Car, Sparkles, type LucideIcon } from 'lucide-react'
+import type { TaskWithGoal, SpotTask } from '@/lib/types'
 import type { Ritual } from '@/lib/rituals'
 import { rankRituals } from '@/lib/rituals'
 import { RITUAL_ILLO } from '@/lib/illustrations'
@@ -15,7 +15,8 @@ const ROOMS: { key: string; label: string; Icon: LucideIcon }[] = [
   { key: 'office', label: 'Office', Icon: Briefcase },
   { key: 'kitchen', label: 'Kitchen', Icon: Coffee },
   { key: 'bedroom', label: 'Bedroom', Icon: Moon },
-  { key: 'backyard', label: 'Yard', Icon: Leaf },
+  { key: 'living_room', label: 'Living room', Icon: Sofa },
+  { key: 'yard', label: 'Yard', Icon: Leaf },
   { key: 'gym', label: 'Gym', Icon: Dumbbell },
   { key: 'errands', label: 'Out', Icon: Car },
 ]
@@ -34,11 +35,20 @@ interface PresenceBarProps {
 export function PresenceBar({ tasks, rituals, ritualLog, now, onCompleteTask, onCompleteRitual }: PresenceBarProps) {
   const [room, setRoom] = useState<string | null>(null)
   const [picking, setPicking] = useState(false)
+  // Location-tagged one-liners she dropped (via the bot or app) for this room.
+  const [spots, setSpots] = useState<SpotTask[]>([])
 
   const loadWhere = useCallback(() => {
     fetch('/api/where')
       .then(r => (r.ok ? r.json() : null))
       .then(d => { if (d?.room) setRoom(d.room) })
+      .catch(() => {})
+  }, [])
+
+  const loadSpots = useCallback((r: string) => {
+    fetch(`/api/spot?room=${encodeURIComponent(r)}`)
+      .then(res => (res.ok ? res.json() : null))
+      .then(d => { if (d?.items) setSpots(d.items as SpotTask[]) })
       .catch(() => {})
   }, [])
 
@@ -49,6 +59,19 @@ export function PresenceBar({ tasks, rituals, ritualLog, now, onCompleteTask, on
     document.addEventListener('visibilitychange', onVis)
     return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVis) }
   }, [loadWhere])
+
+  // Pull this room's spot tasks when the room changes (and refresh on a slow tick).
+  useEffect(() => {
+    if (!room) { setSpots([]); return }
+    loadSpots(room)
+    const id = setInterval(() => loadSpots(room), 60_000)
+    return () => clearInterval(id)
+  }, [room, loadSpots])
+
+  const completeSpot = useCallback((id: string) => {
+    setSpots(prev => prev.filter(s => s.id !== id))
+    fetch(`/api/spot?id=${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {})
+  }, [])
 
   const choose = useCallback((r: string) => {
     setRoom(r)
@@ -66,7 +89,7 @@ export function PresenceBar({ tasks, rituals, ritualLog, now, onCompleteTask, on
   const roomRituals = room
     ? rankRituals(rituals.filter(r => r.context === room), ritualLog, now).filter(s => s.due).slice(0, 3)
     : []
-  const hasItems = roomTasks.length > 0 || roomRituals.length > 0
+  const hasItems = spots.length > 0 || roomTasks.length > 0 || roomRituals.length > 0
 
   const picker = (
     <AnimatePresence>
@@ -113,6 +136,15 @@ export function PresenceBar({ tasks, rituals, ritualLog, now, onCompleteTask, on
       {picker}
       {hasItems ? (
         <div className="bg-card border border-card-border rounded-3xl divide-y divide-card-border overflow-hidden mt-1">
+          {spots.map(s => (
+            <button key={s.id} onClick={() => completeSpot(s.id)} className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted-light transition-colors">
+              <span className="w-7 flex justify-center shrink-0">
+                {s.emoji ? <span className="text-lg leading-none">{s.emoji}</span> : <MapPin size={18} className="text-today-ink" />}
+              </span>
+              <span className="flex-1 text-sm font-semibold truncate">{s.title}</span>
+              <span className="shrink-0 w-6 h-6 rounded-full border-2 border-today-ink" />
+            </button>
+          ))}
           {roomRituals.map(s => {
             const Fallback = RITUAL_ICON[s.ritual.id] || Sparkles
             return (

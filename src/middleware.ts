@@ -15,6 +15,10 @@ export default auth((req) => {
     // Geofence arrivals (Apple Shortcuts) hit this with a token, never a session.
     req.nextUrl.pathname.startsWith('/api/arrive') ||
     req.nextUrl.pathname.startsWith('/api/inbox') ||
+    // Location-tagged "spot tasks": the bot POSTs with a token; the app uses a session.
+    req.nextUrl.pathname.startsWith('/api/spot') ||
+    // The ESPresense presence bridge reports in-house room entry with a token.
+    req.nextUrl.pathname.startsWith('/api/enter') ||
     // The push service worker must stay fetchable for registration + update checks.
     req.nextUrl.pathname === '/sw.js' ||
     // The office TV kiosk is token-gated in the page/endpoint, not by session.
