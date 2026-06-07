@@ -14,6 +14,9 @@ export const INBOX_TABLE = 'gaedhd_inbox'
 export const ARRIVAL_LOG_TABLE = 'gaedhd_arrival_log'
 // Web push subscriptions (one row per device/browser she enables).
 export const PUSH_SUBS_TABLE = 'gaedhd_push_subs'
+// Location-tagged one-line tasks ("water the plants in the yard"), surfaced and
+// nudged when she's physically in that room.
+export const SPOT_TASKS_TABLE = 'gaedhd_spot_tasks'
 
 export function getSupabaseAdmin() {
   if (!url || !serviceKey) {

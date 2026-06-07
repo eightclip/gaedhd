@@ -49,3 +49,22 @@ create table if not exists gaedhd_push_subs (
 );
 create index if not exists gaedhd_push_subs_user_idx on gaedhd_push_subs (user_email);
 alter table gaedhd_push_subs enable row level security;
+
+-- Location-tagged one-line tasks ("water the plants in the yard"). Written by
+-- the Telegram bot (token) or the app (session) via /api/spot; read + completed
+-- in the app's "while you're here" panel; nudged by /api/enter when the presence
+-- bridge reports she's in that room. Its own table (not the state blob) so async
+-- writers never clobber her synced state.
+create table if not exists gaedhd_spot_tasks (
+  id         uuid primary key default gen_random_uuid(),
+  user_email text not null,
+  title      text not null,
+  room       text not null,   -- a room slug: office/kitchen/bedroom/living_room/yard/…
+  emoji      text,
+  done       boolean default false,
+  created_at timestamptz default now(),
+  done_at    timestamptz
+);
+create index if not exists gaedhd_spot_tasks_user_idx
+  on gaedhd_spot_tasks (user_email, done, room, created_at);
+alter table gaedhd_spot_tasks enable row level security;

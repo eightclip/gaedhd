@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Sparkles, X, Pencil, Trash2, Check } from 'lucide-react'
+import { Plus, Sparkles, X, Pencil, Trash2, Check, CheckCircle2 } from 'lucide-react'
 import { categoryColors } from '@/lib/mock-data'
 import { categoryIcon } from '@/lib/icons'
 import { Illo } from '@/components/Illo'
@@ -362,21 +362,24 @@ export default function GoalsPage() {
         </div>
       )}
 
-      {/* Goal cards */}
+      {/* Goal cards — finished goals sink to the bottom */}
       <div className="space-y-3 md:grid md:grid-cols-2 md:gap-4 md:space-y-0">
-        {store.goals.map((goal) => {
+        {[...store.goals]
+          .sort((a, b) => (a.progressPct >= 100 ? 1 : 0) - (b.progressPct >= 100 ? 1 : 0))
+          .map((goal) => {
           const color = categoryColors[goal.category] || '#8B6F5E'
           const GoalIcon = categoryIcon(goal.category)
           const taskCount = store.microTasks.filter(t => t.goalId === goal.id).length
           const doneCount = store.microTasks.filter(t => t.goalId === goal.id && t.status === 'completed').length
           const isConfirmDelete = confirmDeleteId === goal.id
+          const isDone = goal.progressPct >= 100
 
           return (
             <motion.div
               key={goal.id}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-card border border-card-border rounded-2xl p-4 flex items-center gap-4"
+              className={`bg-card border border-card-border rounded-2xl p-4 flex items-center gap-4 ${isDone ? 'opacity-60' : ''}`}
             >
               <ProgressRing progress={goal.progressPct} size={56} strokeWidth={6} color={color}>
                 <GoalIcon size={20} style={{ color }} />
@@ -400,6 +403,18 @@ export default function GoalsPage() {
 
               {/* Actions */}
               <div className="flex items-center gap-1 shrink-0">
+                <button
+                  onClick={() => isDone ? store.reopenGoal(goal.id) : store.completeGoal(goal.id)}
+                  className={`p-2 rounded-full transition-colors ${
+                    isDone
+                      ? 'bg-green-600 text-white'
+                      : 'text-muted hover:text-green-600 hover:bg-green-50'
+                  }`}
+                  aria-label={isDone ? 'Reopen goal' : 'Mark goal complete'}
+                  title={isDone ? 'Done — tap to reopen into your day' : 'Mark all steps done'}
+                >
+                  <CheckCircle2 size={15} />
+                </button>
                 <button
                   onClick={() => openEdit(goal)}
                   className="p-2 rounded-full text-muted hover:text-foreground hover:bg-muted-light transition-colors"
