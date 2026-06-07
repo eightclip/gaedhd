@@ -93,6 +93,9 @@ function DumpRow({
             className="flex-1 min-w-0 text-left"
           >
             <p className="text-sm font-medium truncate">{item.rawText}</p>
+            {item.source && !['telegram', 'api', 'app', 'photo'].includes(item.source) && (
+              <span className="font-mono text-[10px] text-today-ink mt-0.5 block">💛 from {item.source.charAt(0).toUpperCase() + item.source.slice(1)}</span>
+            )}
             {item.status === 'processing' && (
               <span className="flex items-center gap-1.5 font-mono text-[10px] text-muted mt-0.5">
                 <Loader2 size={11} className="animate-spin" /> breaking it into bite-size steps…
@@ -198,8 +201,8 @@ export default function ParkingLotPage() {
       .then(r => (r.ok ? r.json() : null))
       .then(d => {
         if (cancelled || !d?.items?.length) return
-        for (const it of d.items as { id: string; raw_text: string | null }[]) {
-          if (it.raw_text) store.addParkingLotItem(it.raw_text)
+        for (const it of d.items as { id: string; raw_text: string | null; source?: string }[]) {
+          if (it.raw_text) store.addParkingLotItem(it.raw_text, it.source)
           fetch(`/api/inbox?id=${encodeURIComponent(it.id)}`, { method: 'DELETE' }).catch(() => {})
         }
       })

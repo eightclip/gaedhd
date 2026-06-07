@@ -260,7 +260,7 @@ export function useStore() {
     })
   }, [])
 
-  const addParkingLotItem = useCallback((text: string) => {
+  const addParkingLotItem = useCallback((text: string, source?: string) => {
     setState(prev => {
       // Dedup: if the exact text is already in the dump, don't add it again
       // (the inbox-drain can re-run on remounts).
@@ -273,6 +273,7 @@ export function useStore() {
           processed: false,
           status: 'processing' as const, // the page kicks off the AI breakdown
           createdAt: new Date().toISOString(),
+          source,
         }, ...prev.parkingLot],
       }
     })

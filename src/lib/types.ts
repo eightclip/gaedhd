@@ -155,6 +155,7 @@ export interface ParkingLotItem {
   title?: string   // AI's short title for the eventual goal
   emoji?: string
   sequential?: boolean // do the steps have to be done in order?
+  source?: string  // who/what added it (e.g. "john" via the bot's /add) — shown as a badge
 }
 
 // ─── Spot Tasks ─────────────────────────────────────────────────

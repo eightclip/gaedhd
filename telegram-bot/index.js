@@ -154,6 +154,31 @@ bot.command("start", (ctx) =>
 bot.command("help", (ctx) => ctx.reply(HELP_TEXT, { parse_mode: "Markdown" }));
 
 // ---------------------------------------------------------------------------
+// /add <thing> — drop something straight into her Dump (no AI guessing).
+// For jotting things she mentioned in passing. It waits in her Dump for her to
+// spark into a goal (keep it) or skip it — she decides on/off, never forced.
+// Aliases: /goal, /forher.
+// ---------------------------------------------------------------------------
+bot.command(["add", "goal", "forher"], async (ctx) => {
+  const text = (ctx.match || "").trim();
+  if (!text) {
+    await ctx.reply(
+      "Type the thing after the command, e.g.\n`/add repot the fiddle leaf fig`\n\nIt lands in her Dump and she chooses to keep it or skip it.",
+      { parse_mode: "Markdown" }
+    );
+    return;
+  }
+  try {
+    const who = (ctx.from?.first_name || "partner").toLowerCase();
+    await postInbox(text, who);
+    await ctx.reply(`Added to her Dump ✓\n“${text}”\nShe'll see it and can spark it into a goal or skip it — no pressure on her.`);
+  } catch (err) {
+    console.error("[/add] error:", err.message);
+    await ctx.reply("Couldn't add that right now. Try again in a moment.");
+  }
+});
+
+// ---------------------------------------------------------------------------
 // /next — what to focus on right now
 // ---------------------------------------------------------------------------
 bot.command("next", async (ctx) => {
@@ -473,12 +498,12 @@ async function fetchNow() {
 }
 
 /** POSTs a raw text string to /api/inbox. Throws on non-2xx. */
-async function postInbox(raw_text) {
+async function postInbox(raw_text, source = "telegram") {
   const url = `${GAEDHD_BASE_URL}/api/inbox?token=${encodeURIComponent(GAEDHD_NOW_TOKEN)}`;
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ raw_text, source: "telegram" }),
+    body: JSON.stringify({ raw_text, source }),
     signal: AbortSignal.timeout(10_000),
   });
   if (!res.ok) {
