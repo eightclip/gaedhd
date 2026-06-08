@@ -15,9 +15,10 @@ interface JustDoThisCardProps {
   onComplete?: (taskId: string) => void
   onSkip?: (taskId: string) => void
   onPause?: (taskId: string) => void
+  onEvent?: (key: string) => void // private usage signal (tiny-start, reframe shown)
 }
 
-export function JustDoThisCard({ tasks, onComplete, onSkip, onPause }: JustDoThisCardProps) {
+export function JustDoThisCard({ tasks, onComplete, onSkip, onPause, onEvent }: JustDoThisCardProps) {
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set())
   const [pausedIds, setPausedIds] = useState<Set<string>>(new Set())
   const [timeLeft, setTimeLeft] = useState(0)
@@ -52,7 +53,8 @@ export function JustDoThisCard({ tasks, onComplete, onSkip, onPause }: JustDoThi
     setReframe(false)
     setSkipRun(0)
     setTimeLeft(120)
-  }, [])
+    onEvent?.('tiny')
+  }, [onEvent])
 
   const handleSkip = useCallback(() => {
     if (!currentTask) return
@@ -60,13 +62,14 @@ export function JustDoThisCard({ tasks, onComplete, onSkip, onPause }: JustDoThi
     // Second skip in a row → pause and offer the reframe rather than skipping.
     if (nextRun >= 2 && !reframe) {
       setReframe(true)
+      onEvent?.('reframe')
       return
     }
     setSkipRun(nextRun)
     setReframe(false)
     setCompletedIds(prev => new Set(prev).add(currentTask.id))
     onSkip?.(currentTask.microTask.id)
-  }, [currentTask, onSkip, skipRun, reframe])
+  }, [currentTask, onSkip, skipRun, reframe, onEvent])
 
   // Pause: set this one aside for later. It stays pending (not done, not skipped)
   // so it comes back around — for when a quick task is running long.
