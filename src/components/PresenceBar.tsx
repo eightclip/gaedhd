@@ -130,12 +130,14 @@ export function PresenceBar({ tasks, rituals, ritualLog, now, onCompleteTask, on
     <section className="mb-8">
       <button onClick={() => setPicking(p => !p)} className="flex items-center gap-2 mb-3">
         {MetaIcon && <MetaIcon size={18} className="text-today-ink" />}
-        <p className="text-xs font-bold uppercase tracking-widest text-today-ink">While you&apos;re in the {meta?.label.toLowerCase()}</p>
+        <p className="text-xs font-bold uppercase tracking-widest text-today-ink">
+          {hasItems ? `Right here, right now · ${meta?.label.toLowerCase()}` : `While you're in the ${meta?.label.toLowerCase()}`}
+        </p>
         <MapPin size={13} className="text-muted" />
       </button>
       {picker}
       {hasItems ? (
-        <div className="bg-card border border-card-border rounded-3xl divide-y divide-card-border overflow-hidden mt-1">
+        <div className="border border-card-border rounded-3xl divide-y divide-card-border overflow-hidden mt-1" style={{ backgroundColor: 'var(--today-tint)' }}>
           {spots.map(s => (
             <button key={s.id} onClick={() => completeSpot(s.id)} className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted-light transition-colors">
               <span className="w-7 flex justify-center shrink-0">
