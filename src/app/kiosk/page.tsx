@@ -125,14 +125,14 @@ export default function KioskPage() {
       <div className="grid grid-cols-12 gap-[1.2vw] flex-[1.5] min-h-0">
         {/* Right now */}
         <div className="col-span-6 rounded-[1.5vw] bg-today-tint p-[1.8vw] flex flex-col justify-between min-h-0 overflow-hidden">
-          {label(freeNow ? 'Your time' : 'Right now')}
+          {label(freeNow ? 'All caught up' : 'Right now')}
           {data?.task && !freeNow ? (
             <div>
               <p className="font-display text-[3.4vw] font-bold leading-[1.03]">{data.task.title}</p>
               <p className="font-mono text-[1.2vw] text-today-ink mt-[0.6vw]">{data.task.goal} · {data.task.durationMin}m</p>
             </div>
           ) : (
-            <p className="font-display text-[3vw] font-bold leading-[1.05]">Go make something you love.</p>
+            <p className="font-display text-[3vw] font-bold leading-[1.05]">Nothing needs you right now. Enjoy it.</p>
           )}
         </div>
 
