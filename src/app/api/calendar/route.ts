@@ -23,53 +23,16 @@ export async function GET(request: Request) {
     ? new Date(params.get('end')!)
     : new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
 
-  // Token-protected diagnostic: inspect every account's feeds without a session.
-  const debugTok = params.get('debugToken')
-  if (debugTok && debugTok === process.env.GAEDHD_NOW_TOKEN) {
-    const sb = getSupabaseAdmin()
-    const { data: rows } = await sb.from(STATE_TABLE).select('user_email, state')
-    const report: unknown[] = []
-    for (const row of rows ?? []) {
-      const srcs = ((row.state as any)?.settings?.calendarSources ?? []) as CalendarSource[]
-      for (const src of srcs) {
-        const norm = normalizeUrl(src.url)
-        let host = ''
-        try { host = new URL(norm).host } catch { host = 'invalid-url' }
-        const looksLikeIcs = /\/ical\//i.test(norm) || /\.ics(\?|$)/i.test(norm)
-        let status = 'ok', totalVevents = 0, recurring = 0, eventsToday = 0, eventsNext14 = 0, err = ''
-        const sample: string[] = []
-        try {
-          const parsed = await ical.async.fromURL(norm)
-          const wideEnd = new Date(dayStart.getTime() + 14 * 86400000)
-          const evsToday: CalendarEvent[] = []
-          const evsWide: CalendarEvent[] = []
-          for (const k of Object.keys(parsed)) {
-            const comp = parsed[k] as any
-            if (comp?.type === 'VEVENT') {
-              totalVevents++
-              if (comp.rrule) recurring++
-              collectOccurrences(comp, dayStart, dayEnd, src, evsToday)
-              collectOccurrences(comp, dayStart, wideEnd, src, evsWide)
-            }
-          }
-          eventsToday = evsToday.length
-          eventsNext14 = evsWide.length
-          for (const e of evsWide.slice(0, 6)) sample.push(`${e.title} @ ${e.startTime}`)
-        } catch (e) {
-          status = 'FETCH_FAILED'
-          err = e instanceof Error ? e.message : 'unknown'
-        }
-        report.push({ email: row.user_email, name: src.name, type: src.type, host, looksLikeIcs, status, totalVevents, recurring, eventsToday, eventsNext14, sample, err })
-      }
-    }
-    return Response.json({ debug: true, dayStart: dayStart.toISOString(), dayEnd: dayEnd.toISOString(), report })
-  }
-
   const session = await auth()
   const email = session?.user?.email?.toLowerCase()
   if (!email) {
     return Response.json({ error: 'unauthorized' }, { status: 401 })
   }
+
+  // Optional per-user diagnostic: ?debug=1 reports feed health for the CALLER's
+  // own calendar sources only (event counts + a sample, scoped to their session).
+  // The old debugToken backdoor that dumped every account's feeds was removed.
+  const debug = params.get('debug') === '1'
 
   const supabase = getSupabaseAdmin()
   const { data } = await supabase
@@ -81,6 +44,41 @@ export async function GET(request: Request) {
   const sources: CalendarSource[] =
     (data?.state as { settings?: { calendarSources?: CalendarSource[] } } | null)?.settings
       ?.calendarSources ?? []
+
+  if (debug) {
+    const wideEnd = new Date(dayStart.getTime() + 14 * 86400000)
+    const report: unknown[] = []
+    for (const src of sources) {
+      const norm = normalizeUrl(src.url)
+      let host = ''
+      try { host = new URL(norm).host } catch { host = 'invalid-url' }
+      const looksLikeIcs = /\/ical\//i.test(norm) || /\.ics(\?|$)/i.test(norm)
+      let status = 'ok', totalVevents = 0, recurring = 0, eventsToday = 0, eventsNext14 = 0, err = ''
+      const sample: string[] = []
+      try {
+        const parsed = await ical.async.fromURL(norm)
+        const evsToday: CalendarEvent[] = []
+        const evsWide: CalendarEvent[] = []
+        for (const k of Object.keys(parsed)) {
+          const comp = parsed[k] as any
+          if (comp?.type === 'VEVENT') {
+            totalVevents++
+            if (comp.rrule) recurring++
+            collectOccurrences(comp, dayStart, dayEnd, src, evsToday)
+            collectOccurrences(comp, dayStart, wideEnd, src, evsWide)
+          }
+        }
+        eventsToday = evsToday.length
+        eventsNext14 = evsWide.length
+        for (const e of evsWide.slice(0, 6)) sample.push(`${e.title} @ ${e.startTime}`)
+      } catch (e) {
+        status = 'FETCH_FAILED'
+        err = e instanceof Error ? e.message : 'unknown'
+      }
+      report.push({ name: src.name, type: src.type, host, looksLikeIcs, status, totalVevents, recurring, eventsToday, eventsNext14, sample, err })
+    }
+    return Response.json({ debug: true, dayStart: dayStart.toISOString(), dayEnd: dayEnd.toISOString(), report })
+  }
 
   if (!sources.length) {
     return Response.json({ events: [], calendars: 0 })

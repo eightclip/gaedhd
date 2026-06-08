@@ -1,5 +1,6 @@
 import { auth } from '@/auth'
 import { getSupabaseAdmin, supabaseConfigured, INBOX_TABLE } from '@/lib/supabase-server'
+import { nowTokenEmail } from '@/lib/now-auth'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -10,19 +11,6 @@ export const dynamic = 'force-dynamic'
 //  - GET   (session) -> her pending captures, for review in the app
 //  - DELETE (session) ?id=... -> mark a capture processed once she's added it
 
-function tokenEmail(request: Request): string | null {
-  const token = process.env.GAEDHD_NOW_TOKEN
-  const provided = new URL(request.url).searchParams.get('token')
-  if (token && provided === token) {
-    return (
-      process.env.GAEDHD_NOW_EMAIL ||
-      (process.env.ALLOWED_EMAILS || '').split(',')[0] ||
-      ''
-    ).trim().toLowerCase() || null
-  }
-  return null
-}
-
 export async function POST(request: Request) {
   if (!supabaseConfigured()) return Response.json({ error: 'sync_not_configured' }, { status: 503 })
 
@@ -30,7 +18,7 @@ export async function POST(request: Request) {
   try { body = await request.json() } catch { /* allow query-only */ }
 
   // Device/bot token, else the logged-in user.
-  let email = tokenEmail(request)
+  let email = nowTokenEmail(request)
   let source = body.source || 'api'
   if (!email) {
     const session = await auth()

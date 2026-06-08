@@ -7,6 +7,7 @@ import {
   SPOT_TASKS_TABLE,
 } from '@/lib/supabase-server'
 import { sendTelegram, sendWebPush } from '@/lib/notify'
+import { nowTokenEmail } from '@/lib/now-auth'
 import { rankRituals, DEFAULT_RITUALS, type Ritual } from '@/lib/rituals'
 import type { MicroTask } from '@/lib/types'
 
@@ -23,17 +24,6 @@ export const dynamic = 'force-dynamic'
 
 const COOLDOWN_MIN = 30
 
-function tokenEmail(request: Request): string | null {
-  const token = process.env.GAEDHD_NOW_TOKEN
-  const provided = new URL(request.url).searchParams.get('token')
-  if (!token || provided !== token) return null
-  return (
-    process.env.GAEDHD_NOW_EMAIL ||
-    (process.env.ALLOWED_EMAILS || '').split(',')[0] ||
-    ''
-  ).trim().toLowerCase() || null
-}
-
 const humanRoom = (room: string) => room.replace(/_/g, ' ')
 
 async function handle(request: Request) {
@@ -47,7 +37,7 @@ async function handle(request: Request) {
   if (!room) return Response.json({ error: 'room required' }, { status: 400 })
   room = room.trim().toLowerCase()
 
-  const email = tokenEmail(request)
+  const email = nowTokenEmail(request)
   if (!email) return Response.json({ error: 'unauthorized' }, { status: 401 })
 
   const supabase = getSupabaseAdmin()

@@ -1,6 +1,7 @@
 import { getSupabaseAdmin, supabaseConfigured, PRESENCE_TABLE, STATE_TABLE, ARRIVAL_LOG_TABLE } from '@/lib/supabase-server'
 import { currentNextActions } from '@/lib/schedule'
 import { sendTelegram, sendWebPush } from '@/lib/notify'
+import { nowTokenEmail } from '@/lib/now-auth'
 import type { Goal, MicroTask } from '@/lib/types'
 
 export const runtime = 'nodejs'
@@ -26,17 +27,6 @@ const ARRIVAL_COPY: Record<string, (task: string | null) => string> = {
   school: t => t ? `🚗 School run done. You've got a clear stretch now: ${t}` : `🚗 School run done. Breathe first, then pick one thing.`,
 }
 
-function resolveEmail(request: Request): string | null {
-  const token = process.env.GAEDHD_NOW_TOKEN
-  const provided = new URL(request.url).searchParams.get('token')
-  if (!token || provided !== token) return null
-  return (
-    process.env.GAEDHD_NOW_EMAIL ||
-    (process.env.ALLOWED_EMAILS || '').split(',')[0] ||
-    ''
-  ).trim().toLowerCase() || null
-}
-
 async function handle(request: Request) {
   if (!supabaseConfigured()) {
     return Response.json({ error: 'sync_not_configured' }, { status: 503 })
@@ -50,7 +40,7 @@ async function handle(request: Request) {
   if (!room) return Response.json({ error: 'room required' }, { status: 400 })
   room = room.toLowerCase()
 
-  const email = resolveEmail(request)
+  const email = nowTokenEmail(request)
   if (!email) return Response.json({ error: 'unauthorized' }, { status: 401 })
 
   const supabase = getSupabaseAdmin()

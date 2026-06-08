@@ -13,8 +13,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
     signIn({ user }) {
       const allowed = getAllowedEmails()
-      // If no allowlist is set, allow everyone (dev mode)
-      if (allowed.length === 0) return true
+      // Fail CLOSED: an empty allowlist denies everyone in production, so a blank
+      // or mistyped ALLOWED_EMAILS can never silently open the app to the whole
+      // internet. Allow-all stays available only in local dev.
+      if (allowed.length === 0) return process.env.NODE_ENV !== 'production'
       // Check if user's email is in the allowlist
       const email = user.email?.toLowerCase()
       if (!email || !allowed.includes(email)) {

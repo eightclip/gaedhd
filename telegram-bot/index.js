@@ -471,12 +471,16 @@ function isActiveHour() {
   }
 }
 
+// Send the device token in an Authorization header, never in the URL, so it
+// stays out of server access logs and Referer headers.
+const authHeaders = (extra = {}) => ({ Authorization: `Bearer ${GAEDHD_NOW_TOKEN}`, ...extra });
+
 /** POSTs a location-tagged spot task to /api/spot. Throws on non-2xx. */
 async function postSpot(title, room, emoji) {
-  const url = `${GAEDHD_BASE_URL}/api/spot?token=${encodeURIComponent(GAEDHD_NOW_TOKEN)}`;
+  const url = `${GAEDHD_BASE_URL}/api/spot`;
   const res = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ title, room, emoji, source: "telegram" }),
     signal: AbortSignal.timeout(10_000),
   });
@@ -488,8 +492,8 @@ async function postSpot(title, room, emoji) {
 
 /** Calls GET /api/now and returns parsed JSON. Throws on non-2xx. */
 async function fetchNow() {
-  const url = `${GAEDHD_BASE_URL}/api/now?token=${encodeURIComponent(GAEDHD_NOW_TOKEN)}`;
-  const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+  const url = `${GAEDHD_BASE_URL}/api/now`;
+  const res = await fetch(url, { headers: authHeaders(), signal: AbortSignal.timeout(10_000) });
   if (!res.ok) {
     const body = await res.text().catch(() => "(no body)");
     throw new Error(`GET /api/now ${res.status}: ${body}`);
@@ -499,10 +503,10 @@ async function fetchNow() {
 
 /** POSTs a raw text string to /api/inbox. Throws on non-2xx. */
 async function postInbox(raw_text, source = "telegram") {
-  const url = `${GAEDHD_BASE_URL}/api/inbox?token=${encodeURIComponent(GAEDHD_NOW_TOKEN)}`;
+  const url = `${GAEDHD_BASE_URL}/api/inbox`;
   const res = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ raw_text, source }),
     signal: AbortSignal.timeout(10_000),
   });
