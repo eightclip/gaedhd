@@ -8,6 +8,7 @@ import {
 } from '@/lib/supabase-server'
 import { sendTelegram, sendWebPush } from '@/lib/notify'
 import { nowTokenEmail } from '@/lib/now-auth'
+import { localHour } from '@/lib/clock'
 import { rankRituals, DEFAULT_RITUALS, type Ritual } from '@/lib/rituals'
 import type { MicroTask } from '@/lib/types'
 
@@ -89,8 +90,9 @@ async function handle(request: Request) {
     return Response.json({ ok: true, room, nudged: false, reason: 'nothing_here' })
   }
 
-  // 3) Quiet hours — never buzz before she's up or after she's down.
-  const hour = now.getHours() + now.getMinutes() / 60
+  // 3) Quiet hours — never buzz before she's up or after she's down. Use HER
+  // timezone, not the function's UTC clock (see src/lib/clock.ts).
+  const hour = localHour()
   const wake = state.settings?.wakeHour ?? 8
   const sleep = state.settings?.sleepHour ?? 21
   if (hour < wake || hour >= sleep) {

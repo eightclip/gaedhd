@@ -2,6 +2,7 @@ import { getSupabaseAdmin, supabaseConfigured, PRESENCE_TABLE, STATE_TABLE, ARRI
 import { currentNextActions } from '@/lib/schedule'
 import { sendTelegram, sendWebPush } from '@/lib/notify'
 import { nowTokenEmail } from '@/lib/now-auth'
+import { localHour } from '@/lib/clock'
 import type { Goal, MicroTask } from '@/lib/types'
 
 export const runtime = 'nodejs'
@@ -79,9 +80,9 @@ async function handle(request: Request) {
     settings?: { wakeHour?: number; sleepHour?: number }
   }
 
-  // Quiet hours: never buzz before she's up or after she's down.
-  const now = new Date()
-  const hour = now.getHours() + now.getMinutes() / 60
+  // Quiet hours: never buzz before she's up or after she's down. Use HER
+  // timezone, not the function's UTC clock (see src/lib/clock.ts).
+  const hour = localHour()
   const wake = state.settings?.wakeHour ?? 8
   const sleep = state.settings?.sleepHour ?? 21
   if (hour < wake || hour >= sleep) {
