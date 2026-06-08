@@ -58,6 +58,15 @@ const DWELL_MS = parseInt(process.env.DWELL_MS || "8000", 10);        // candida
 const TICK_MS = parseInt(process.env.TICK_MS || "3000", 10);          // how often we recompute nearest
 const MAX_DISTANCE_M = parseFloat(process.env.MAX_DISTANCE_M || "8"); // ignore readings farther than this
 
+// Keep-alive: re-affirm the current room periodically so the app's presence
+// doesn't age out. /api/where treats a room with no update for 3h as "unknown"
+// and her "while you're here" tasks vanish — even though she's right there in one
+// spot. We silently refresh (via /api/here, no nudge) during her active hours; the
+// daily morning reset then clears it so a room never lingers overnight.
+const KEEPALIVE_MS = parseInt(process.env.KEEPALIVE_MS || "600000", 10); // 10 min
+const ACTIVE_START = parseInt(process.env.ACTIVE_START || "7", 10);
+const ACTIVE_END = parseInt(process.env.ACTIVE_END || "22", 10);
+
 if (!GAEDHD_NOW_TOKEN) {
   console.error("[fatal] GAEDHD_NOW_TOKEN is not set. Exiting.");
   process.exit(1);
@@ -67,6 +76,7 @@ if (!MQTT_PASS) console.warn("[warn] MQTT_PASS is not set — the broker require
 console.log(`[init] presence bridge → ${GAEDHD_BASE_URL}`);
 console.log(`[init] watching ${TOPIC} on ${MQTT_HOST}:${MQTT_PORT} (user ${MQTT_USER})`);
 console.log(`[init] fresh=${FRESH_MS}ms dwell=${DWELL_MS}ms tick=${TICK_MS}ms maxDist=${MAX_DISTANCE_M}m`);
+console.log(`[init] keep-alive every ${KEEPALIVE_MS}ms during ${ACTIVE_START}:00-${ACTIVE_END}:00`);
 
 // ---------------------------------------------------------------------------
 // State: most recent distance reading per room
@@ -147,6 +157,29 @@ async function enter(room) {
     console.error(`[enter] ${room} failed:`, err.message);
   }
 }
+
+// Silently re-affirm the current room (no nudge) so presence stays fresh.
+async function refresh(room) {
+  const url = `${GAEDHD_BASE_URL}/api/here?room=${encodeURIComponent(room)}`;
+  try {
+    await fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${GAEDHD_NOW_TOKEN}` },
+      signal: AbortSignal.timeout(10_000),
+    });
+  } catch (err) {
+    console.error(`[keepalive] ${room} failed:`, err.message);
+  }
+}
+
+function inActiveHours() {
+  const h = new Date().getHours(); // QNAP runs in her local timezone
+  return h >= ACTIVE_START && h < ACTIVE_END;
+}
+
+setInterval(() => {
+  if (currentRoom && inActiveHours()) refresh(currentRoom);
+}, KEEPALIVE_MS);
 
 setInterval(() => {
   const near = nearestRoom();
