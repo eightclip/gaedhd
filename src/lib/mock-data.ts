@@ -154,6 +154,7 @@ export const categoryColors: Record<string, string> = {
   work: '#8B6F5E',
   family: '#C87E9E',
   'self-care': '#6BA3BE',
+  relationships: '#C87E9E',
   errands: '#A89060',
 }
 
@@ -165,5 +166,6 @@ export const categoryEmojis: Record<string, string> = {
   work: '💼',
   family: '👨‍👩‍👧‍👦',
   'self-care': '🧘',
+  relationships: '💬',
   errands: '🏃',
 }

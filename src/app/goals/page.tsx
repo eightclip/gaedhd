@@ -19,6 +19,7 @@ const CATEGORIES: { value: GoalCategory; label: string; emoji: string }[] = [
   { value: 'work', label: 'Work', emoji: '💼' },
   { value: 'family', label: 'Family', emoji: '👨‍👩‍👧‍👦' },
   { value: 'self-care', label: 'Self Care', emoji: '🧘' },
+  { value: 'relationships', label: 'People', emoji: '💬' },
   { value: 'errands', label: 'Errands', emoji: '🏃' },
 ]
 

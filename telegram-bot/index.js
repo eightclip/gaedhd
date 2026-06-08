@@ -53,6 +53,10 @@ const MORNING_PROMPT_ENABLED = process.env.MORNING_PROMPT_ENABLED === "true";
 const MORNING_HOUR = parseInt(process.env.MORNING_HOUR ?? "9", 10);
 const MORNING_CHAT_ID = process.env.MORNING_CHAT_ID || process.env.NUDGE_CHAT_ID;
 
+// John's chat, for body-doubling pings (she starts a focus block, he gets asked
+// to work alongside her). Optional — /focus still works without it.
+const JOHN_CHAT_ID = process.env.JOHN_CHAT_ID;
+
 // Parse the allowlist once at startup
 const ALLOWED_CHAT_IDS = new Set(
   (process.env.ALLOWED_CHAT_IDS || "")
@@ -105,6 +109,11 @@ GaeDHD bot — your ADHD second brain, now in Telegram.
 • Send me a photo of a handwritten list → I'll read it and add each item.
 • /next — what to focus on right now.
 • /today — your full snapshot: task, rituals, streak, and next meeting.
+
+*When it's a lot*
+• /overwhelmed — I'll shrink the whole day down to one tiny thing.
+• /decide — stuck choosing? I'll help you pick.
+• /focus — start a focus block (I can ask John to body-double).
 
 Everything lands in your GaeDHD app at https://gaedhd.jmj.fyi for you to accept, skip, or reschedule. I never delete anything — I only add.
 `.trim();
@@ -319,6 +328,34 @@ bot.command("decide", async (ctx) => {
     console.error("[/decide] Error:", err.message);
     await ctx.reply("Pick the one that's 60% right and just start. You've got it.");
   }
+});
+
+// ---------------------------------------------------------------------------
+// /focus [minutes] — start a body-doubling focus block and (optionally) ping John
+// to work alongside her. Doing focused work near another person lowers the
+// activation energy to start.
+// ---------------------------------------------------------------------------
+bot.command("focus", async (ctx) => {
+  const arg = parseInt((ctx.match || "").trim(), 10);
+  const minutes = Number.isFinite(arg) && arg > 0 ? Math.min(120, arg) : 25;
+  let johnPinged = false;
+  if (JOHN_CHAT_ID) {
+    try {
+      await bot.api.sendMessage(
+        JOHN_CHAT_ID,
+        `💛 She's starting a ${minutes}-minute focus session. Want to body-double? Work alongside her and reply 👍 so she knows you're in.`
+      );
+      johnPinged = true;
+    } catch (err) {
+      console.error("[/focus] ping John error:", err.message);
+    }
+  }
+  const lines = [
+    `⏱️ ${minutes}-minute focus session — go. Pick one thing and just begin.`,
+    johnPinged ? "I asked John to join you. 💛" : "",
+    "I'll be here. You've got this.",
+  ].filter(Boolean);
+  await ctx.reply(lines.join("\n"));
 });
 
 // ---------------------------------------------------------------------------
@@ -613,6 +650,8 @@ IMPORTANT — location tasks: many of her tasks belong to a specific room, and t
 4. Don't nag. Ask about the room at most once per task. If she says it doesn't matter, "anywhere", "no room", or the task clearly isn't tied to a place, just use add_to_list as normal.
 
 Rooms: office, kitchen, bedroom, living_room, yard, studio.
+
+SELF-ADVOCACY: when she's avoiding a hard conversation or asks for help saying something — "help me say...", "I need to tell...", "how do I tell...", "I'm scared to text...", "I don't know how to ask..." — don't just sympathize. Draft her a short, kind, ready-to-send script she can copy, using "I" statements (e.g. "I feel ___ when ___, and I'd really appreciate ___"). Keep it warm and honest, never aggressive or groveling. One or two lines. Then a quick word of encouragement that she can absolutely send it. This is a real skill she's building — RSD makes her want to withdraw, and a good script lowers the bar to reach out. Do NOT add it to her list unless she asks.
 
 Keep replies short, like a text message. No long paragraphs, no bullet lists unless she asks for one.`;
 

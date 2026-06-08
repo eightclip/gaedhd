@@ -20,6 +20,7 @@ import { BirthdayTakeover } from './BirthdayTakeover'
 import { OverwhelmReset } from './OverwhelmReset'
 import { MoodCheckin } from './MoodCheckin'
 import { DecideHelper } from './DecideHelper'
+import { FocusSession } from './FocusSession'
 import { RECIPIENT_NAME } from '@/lib/letter'
 import { Illo } from './Illo'
 import { ILLO, DONE_ILLOS, pickDaily } from '@/lib/illustrations'
@@ -61,6 +62,7 @@ export function TodayView() {
   const [birthdayDismissed, setBirthdayDismissed] = useState(false)
   const [overwhelmed, setOverwhelmed] = useState(false)
   const [deciding, setDeciding] = useState(false)
+  const [focusing, setFocusing] = useState(false)
   // When she uses the decide helper to commit to one thing, it jumps to the front.
   const [focusId, setFocusId] = useState<string | null>(null)
   // Preview the takeover any day via /?birthday-preview (won't burn the real
@@ -332,6 +334,14 @@ export function TodayView() {
               )
             })}
           </div>
+
+          {/* Body doubling: start a co-working focus block, optionally with John */}
+          <button
+            onClick={() => setFocusing(true)}
+            className="w-full mt-3 rounded-2xl bg-today-tint py-3.5 text-sm font-bold text-today-ink hover:opacity-90 active:scale-[0.99] transition-all flex items-center justify-center gap-2"
+          >
+            🤝 Focus together
+          </button>
         </>
       )}
     </section>
@@ -514,6 +524,7 @@ export function TodayView() {
           onClose={() => setDeciding(false)}
         />
       )}
+      {focusing && <FocusSession onClose={() => setFocusing(false)} />}
       {desktop}
       {mobile}
       {fab}

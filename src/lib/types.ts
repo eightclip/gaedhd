@@ -9,6 +9,7 @@ export type GoalCategory =
   | 'work'
   | 'family'
   | 'self-care'
+  | 'relationships'
   | 'errands'
   | 'custom'
 

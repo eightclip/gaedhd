@@ -63,6 +63,7 @@ Key fields:
 | `ALLOWED_CHAT_IDS` | yes | Comma-separated chat IDs |
 | `NUDGES_ENABLED` | no | Set `true` to enable nudges |
 | `NUDGE_CHAT_ID` | if nudges | Her chat ID for DMs |
+| `JOHN_CHAT_ID` | no | John's chat ID — for `/focus` body-doubling pings |
 | `QUIET_START` | no | Hour (0-23) quiet begins. Default: 21 |
 | `QUIET_END` | no | Hour (0-23) quiet ends. Default: 8 |
 | `GAEDHD_BASE_URL` | no | Default: https://gaedhd.jmj.fyi |

@@ -2,7 +2,7 @@
 // rituals without a hand-drawn illustration fall back to a line icon.
 import {
   Dumbbell, BookOpen, Palette, Home, Briefcase, Users, Heart, ShoppingBag, Target,
-  Smartphone, Cookie, Toilet, Coffee, type LucideIcon,
+  Smartphone, Cookie, Toilet, Coffee, MessageCircle, type LucideIcon,
 } from 'lucide-react'
 
 export const CATEGORY_ICON: Record<string, LucideIcon> = {
@@ -13,6 +13,7 @@ export const CATEGORY_ICON: Record<string, LucideIcon> = {
   work: Briefcase,
   family: Users,
   'self-care': Heart,
+  relationships: MessageCircle,
   errands: ShoppingBag,
   custom: Target,
 }

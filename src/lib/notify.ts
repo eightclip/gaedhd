@@ -5,11 +5,10 @@ import { getSupabaseAdmin, supabaseConfigured, PUSH_SUBS_TABLE } from './supabas
 // set, so the app and the arrival endpoint never error just because one channel
 // isn't wired yet.
 
-// Telegram lands on her phone and her Apple Watch with zero setup on her end.
-// Reuses the bot token + chat id the nudge bot already uses.
-export async function sendTelegram(text: string): Promise<boolean> {
+// Send to a specific Telegram chat. No-ops gracefully if the bot token or the
+// chat id isn't set, so callers never error just because a channel isn't wired.
+export async function sendTelegramTo(chatId: string | undefined, text: string): Promise<boolean> {
   const token = process.env.TELEGRAM_BOT_TOKEN
-  const chatId = process.env.TELEGRAM_CHAT_ID || process.env.NUDGE_CHAT_ID
   if (!token || !chatId) return false
   try {
     const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
@@ -21,6 +20,17 @@ export async function sendTelegram(text: string): Promise<boolean> {
   } catch {
     return false
   }
+}
+
+// Telegram lands on her phone and her Apple Watch with zero setup on her end.
+// Reuses the bot token + chat id the nudge bot already uses.
+export async function sendTelegram(text: string): Promise<boolean> {
+  return sendTelegramTo(process.env.TELEGRAM_CHAT_ID || process.env.NUDGE_CHAT_ID, text)
+}
+
+// Ping John (the built-in body double). Needs JOHN_CHAT_ID set.
+export async function sendJohn(text: string): Promise<boolean> {
+  return sendTelegramTo(process.env.JOHN_CHAT_ID, text)
 }
 
 let vapidReady = false

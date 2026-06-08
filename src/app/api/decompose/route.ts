@@ -220,7 +220,7 @@ function generateMockDecomposition(goal: string, _category: string) {
 function getCategoryEmoji(category: string): string {
   const map: Record<string, string> = {
     fitness: '💪', learning: '📚', art: '🎨', home: '🏠',
-    work: '💼', family: '👨‍👩‍👧‍👦', 'self-care': '🧘', errands: '🏃',
+    work: '💼', family: '👨‍👩‍👧‍👦', 'self-care': '🧘', relationships: '💬', errands: '🏃',
   }
   return map[category] || '✨'
 }
