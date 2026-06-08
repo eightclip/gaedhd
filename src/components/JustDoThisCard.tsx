@@ -207,9 +207,9 @@ export function JustDoThisCard({ tasks, onComplete, onSkip, onPause, onEvent }: 
             {!tinyMode && (
               <button
                 onClick={handleStartTiny}
-                className="mt-4 self-start inline-flex items-center gap-1.5 text-xs font-semibold text-white/70 hover:text-white transition-colors"
+                className="mt-4 self-start inline-flex items-center gap-2 rounded-full bg-white/25 px-4 py-2.5 text-sm font-bold text-white hover:bg-white/35 active:scale-95 transition-all"
               >
-                <Zap size={13} /> or just start — 2 minutes
+                <Zap size={16} /> Just start — 2 minutes
               </button>
             )}
           </div>
