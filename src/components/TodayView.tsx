@@ -402,9 +402,9 @@ export function TodayView() {
         {header({ day: 'text-7xl', num: 'text-[9rem]', month: 'text-2xl' })}
         {datesCard}
         {meetingCopilot}
+        {presence}
         {justDoThis}
         {rhythm}
-        {presence}
         {gymPicker}
         {flowSection}
       </div>
@@ -427,9 +427,9 @@ export function TodayView() {
       {datesCard}
       <div className="mb-10">{water}</div>
       {meetingCopilot}
+      {presence}
       {justDoThis}
       {rhythm}
-      {presence}
       {gymPicker}
       {flowSection}
       {winsTiles}
