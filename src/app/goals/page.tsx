@@ -19,6 +19,7 @@ const CATEGORIES: { value: GoalCategory; label: string; emoji: string }[] = [
   { value: 'work', label: 'Work', emoji: '💼' },
   { value: 'family', label: 'Family', emoji: '👨‍👩‍👧‍👦' },
   { value: 'self-care', label: 'Self Care', emoji: '🧘' },
+  { value: 'relationships', label: 'People', emoji: '💬' },
   { value: 'errands', label: 'Errands', emoji: '🏃' },
 ]
 
@@ -51,6 +52,21 @@ export default function GoalsPage() {
   // Delete confirm
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
+  // Draft review (when help is faded to 'partial'/'prompt', the breakdown becomes
+  // a draft SHE completes before it's saved — that's the point: she does the work).
+  const [draft, setDraft] = useState<null | {
+    title: string; emoji: string; sequential: boolean
+    steps: { id: string; title: string }[]
+    questions: string[]
+  }>(null)
+
+  const closeAddForm = () => {
+    setIsDecomposing(false)
+    setShowInput(false)
+    setGoalText('')
+    setDraft(null)
+  }
+
   const handleSubmit = async () => {
     if (!goalText.trim()) return
     setIsDecomposing(true)
@@ -64,48 +80,105 @@ export default function GoalsPage() {
           lifeArea: selectedArea,
           apiKey: store.settings.anthropicApiKey || undefined,
           userContext: store.settings.userContext || undefined,
+          helpLevel: store.settings.helpLevel,
         }),
       })
       const data = await res.json()
-      if (!data.error) {
-        const goalId = `goal-${Date.now()}`
-        const newGoal: Goal = {
-          id: goalId,
+      if (data.error) { closeAddForm(); return }
+
+      // Faded help: hand her a draft to finish instead of auto-filling her day.
+      if (data.coaching && data.coaching !== 'full') {
+        const steps = (data.microTasks || []).map((t: { title: string }, i: number) => ({ id: `d-${i}`, title: t.title }))
+        const minSlots = data.coaching === 'partial' ? steps.length + 1 : 2
+        while (steps.length < minSlots) steps.push({ id: `d-${steps.length}`, title: '' })
+        setDraft({
           title: data.goal.title || goalText,
-          description: goalText,
-          category: selectedCategory,
-          lifeArea: selectedArea,
-          priority: 3,
-          progressPct: 0,
-          createdAt: new Date().toISOString(),
           emoji: data.goal.emoji || getCategoryEmoji(selectedCategory),
           sequential: data.sequential === true,
-        }
-        const newTasks: MicroTask[] = (data.microTasks || []).map(
-          (t: { title: string; durationMin: number; phase: string; energyLevel: string; cognitiveLoad: string }, i: number) => ({
-            id: `mt-${Date.now()}-${i}`,
-            goalId,
-            title: t.title,
-            durationMin: t.durationMin,
-            energyLevel: (t.energyLevel || 'medium') as MicroTask['energyLevel'],
-            context: 'anywhere' as const,
-            cognitiveLoad: (t.cognitiveLoad || 'light') as MicroTask['cognitiveLoad'],
-            toolsNeeded: [],
-            phase: t.phase,
-            sequenceOrder: i + 1,
-            status: 'pending' as const,
-          })
-        )
-        store.addGoal(newGoal, newTasks)
+          steps,
+          questions: data.questions || [],
+        })
+        setIsDecomposing(false)
+        return // keep the overlay open on the review editor
       }
+
+      // Full help: auto-create with the AI's steps (original behavior).
+      const goalId = `goal-${Date.now()}`
+      const newGoal: Goal = {
+        id: goalId,
+        title: data.goal.title || goalText,
+        description: goalText,
+        category: selectedCategory,
+        lifeArea: selectedArea,
+        priority: 3,
+        progressPct: 0,
+        createdAt: new Date().toISOString(),
+        emoji: data.goal.emoji || getCategoryEmoji(selectedCategory),
+        sequential: data.sequential === true,
+      }
+      const newTasks: MicroTask[] = (data.microTasks || []).map(
+        (t: { title: string; durationMin: number; phase: string; energyLevel: string; cognitiveLoad: string }, i: number) => ({
+          id: `mt-${Date.now()}-${i}`,
+          goalId,
+          title: t.title,
+          durationMin: t.durationMin,
+          energyLevel: (t.energyLevel || 'medium') as MicroTask['energyLevel'],
+          context: 'anywhere' as const,
+          cognitiveLoad: (t.cognitiveLoad || 'light') as MicroTask['cognitiveLoad'],
+          toolsNeeded: [],
+          phase: t.phase,
+          sequenceOrder: i + 1,
+          status: 'pending' as const,
+        })
+      )
+      store.addGoal(newGoal, newTasks)
+      closeAddForm()
     } catch {
-      // fail silently — goal added without tasks if API is down
-    } finally {
-      setIsDecomposing(false)
-      setShowInput(false)
-      setGoalText('')
+      closeAddForm() // fail silently — nothing saved if the API is down
     }
   }
+
+  // She finished her own breakdown — save it as a goal.
+  const handleConfirmDraft = () => {
+    if (!draft) return
+    const titles = draft.steps.map(s => s.title.trim()).filter(Boolean)
+    if (titles.length === 0) return
+    const goalId = `goal-${Date.now()}`
+    const newGoal: Goal = {
+      id: goalId,
+      title: draft.title || goalText,
+      description: goalText,
+      category: selectedCategory,
+      lifeArea: selectedArea,
+      priority: 3,
+      progressPct: 0,
+      createdAt: new Date().toISOString(),
+      emoji: draft.emoji || getCategoryEmoji(selectedCategory),
+      sequential: draft.sequential,
+    }
+    const newTasks: MicroTask[] = titles.map((title, i) => ({
+      id: `mt-${Date.now()}-${i}`,
+      goalId,
+      title,
+      durationMin: 10,
+      energyLevel: 'medium',
+      context: 'anywhere',
+      cognitiveLoad: 'light',
+      toolsNeeded: [],
+      phase: 'Step',
+      sequenceOrder: i + 1,
+      status: 'pending',
+    }))
+    store.addGoal(newGoal, newTasks)
+    closeAddForm()
+  }
+
+  const updateDraftStep = (id: string, title: string) =>
+    setDraft(d => d ? { ...d, steps: d.steps.map(s => s.id === id ? { ...s, title } : s) } : d)
+  const addDraftStep = () =>
+    setDraft(d => d ? { ...d, steps: [...d.steps, { id: `d-${Date.now()}`, title: '' }] } : d)
+  const removeDraftStep = (id: string) =>
+    setDraft(d => d ? { ...d, steps: d.steps.filter(s => s.id !== id) } : d)
 
   const openEdit = (goal: Goal) => {
     setEditingGoal(goal)
@@ -203,75 +276,120 @@ export default function GoalsPage() {
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <Sparkles size={16} className="text-accent" />
-                <span className="text-sm font-bold">New Goal</span>
+                <span className="text-sm font-bold">{draft ? 'Your breakdown' : 'New Goal'}</span>
               </div>
-              <button onClick={() => setShowInput(false)} className="text-muted p-1">
+              <button onClick={closeAddForm} className="text-muted p-1">
                 <X size={18} />
               </button>
             </div>
 
-            <textarea
-              value={goalText}
-              onChange={(e) => setGoalText(e.target.value)}
-              placeholder='Tell me what you want to do... "25 RDLs for the booty" or "learn basic Spanish"'
-              className="w-full bg-muted-light rounded-2xl px-4 py-3 text-sm resize-none h-20 focus:outline-none focus:ring-2 focus:ring-accent/30 placeholder:text-muted"
-              autoFocus
-            />
+            {!draft ? (
+              <>
+                <textarea
+                  value={goalText}
+                  onChange={(e) => setGoalText(e.target.value)}
+                  placeholder='Tell me what you want to do... "25 RDLs for the booty" or "learn basic Spanish"'
+                  className="w-full bg-muted-light rounded-2xl px-4 py-3 text-sm resize-none h-20 focus:outline-none focus:ring-2 focus:ring-accent/30 placeholder:text-muted"
+                  autoFocus
+                />
 
-            <div className="mt-3">
-              <p className="text-xs text-muted font-semibold mb-2">Category</p>
-              <div className="flex flex-wrap gap-1.5">
-                {CATEGORIES.map((cat) => (
-                  <button
-                    key={cat.value}
-                    onClick={() => setSelectedCategory(cat.value)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
-                      selectedCategory === cat.value ? 'text-white' : 'bg-muted-light text-foreground hover:bg-foreground/10'
-                    }`}
-                    style={selectedCategory === cat.value ? { backgroundColor: categoryColors[cat.value] } : {}}
-                  >
-                    {cat.label}
-                  </button>
-                ))}
+                <div className="mt-3">
+                  <p className="text-xs text-muted font-semibold mb-2">Category</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {CATEGORIES.map((cat) => (
+                      <button
+                        key={cat.value}
+                        onClick={() => setSelectedCategory(cat.value)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                          selectedCategory === cat.value ? 'text-white' : 'bg-muted-light text-foreground hover:bg-foreground/10'
+                        }`}
+                        style={selectedCategory === cat.value ? { backgroundColor: categoryColors[cat.value] } : {}}
+                      >
+                        {cat.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-3">
+                  <p className="text-xs text-muted font-semibold mb-2">Calendar</p>
+                  <div className="flex gap-2">
+                    {LIFE_AREAS.map((area) => (
+                      <button
+                        key={area.value}
+                        onClick={() => setSelectedArea(area.value)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                          selectedArea === area.value ? 'bg-foreground text-background' : 'bg-muted-light text-foreground hover:bg-foreground/10'
+                        }`}
+                      >
+                        {area.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleSubmit}
+                  disabled={!goalText.trim() || isDecomposing}
+                  className="w-full mt-4 py-3 bg-accent text-white rounded-2xl font-bold text-sm disabled:opacity-50 hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+                >
+                  {isDecomposing ? (
+                    <>
+                      <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}>
+                        <Sparkles size={16} />
+                      </motion.div>
+                      Breaking it down...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={16} />
+                      {store.settings.helpLevel === 'prompt' ? 'Help me think it through'
+                        : store.settings.helpLevel === 'partial' ? 'Give me a starting point'
+                        : 'Break it down for me'}
+                    </>
+                  )}
+                </button>
+              </>
+            ) : (
+              <div>
+                <p className="text-sm font-bold mb-2">{draft.emoji} {draft.title}</p>
+                {draft.questions.length > 0 && (
+                  <div className="mb-3 rounded-2xl bg-muted-light p-3">
+                    <p className="text-[11px] text-muted font-semibold mb-1.5">Think it through:</p>
+                    <ul className="text-xs text-foreground/80 space-y-1 list-disc pl-4">
+                      {draft.questions.map((q, i) => <li key={i}>{q}</li>)}
+                    </ul>
+                  </div>
+                )}
+                <p className="text-xs text-muted font-semibold mb-2">Your steps — fill these in</p>
+                <div className="space-y-2">
+                  {draft.steps.map((s, i) => (
+                    <div key={s.id} className="flex items-center gap-2">
+                      <span className="font-mono text-[10px] text-muted w-4 shrink-0">{i + 1}</span>
+                      <input
+                        value={s.title}
+                        onChange={(e) => updateDraftStep(s.id, e.target.value)}
+                        placeholder="what's the next small step?"
+                        className="flex-1 bg-muted-light rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 placeholder:text-muted"
+                      />
+                      <button onClick={() => removeDraftStep(s.id)} className="text-muted p-1 hover:text-red-500 shrink-0" aria-label="Remove step">
+                        <X size={15} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <button onClick={addDraftStep} className="mt-2 text-xs font-semibold text-accent flex items-center gap-1">
+                  <Plus size={13} /> Add a step
+                </button>
+                <button
+                  onClick={handleConfirmDraft}
+                  disabled={!draft.steps.some(s => s.title.trim())}
+                  className="w-full mt-4 py-3 bg-accent text-white rounded-2xl font-bold text-sm disabled:opacity-50 hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+                >
+                  <Check size={16} /> Add to my goals
+                </button>
               </div>
-            </div>
-
-            <div className="mt-3">
-              <p className="text-xs text-muted font-semibold mb-2">Calendar</p>
-              <div className="flex gap-2">
-                {LIFE_AREAS.map((area) => (
-                  <button
-                    key={area.value}
-                    onClick={() => setSelectedArea(area.value)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
-                      selectedArea === area.value ? 'bg-foreground text-background' : 'bg-muted-light text-foreground hover:bg-foreground/10'
-                    }`}
-                  >
-                    {area.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <button
-              onClick={handleSubmit}
-              disabled={!goalText.trim() || isDecomposing}
-              className="w-full mt-4 py-3 bg-accent text-white rounded-2xl font-bold text-sm disabled:opacity-50 hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
-            >
-              {isDecomposing ? (
-                <>
-                  <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}>
-                    <Sparkles size={16} />
-                  </motion.div>
-                  Breaking it down...
-                </>
-              ) : (
-                <>
-                  <Sparkles size={16} />
-                  Break it down for me
-                </>
-              )}
-            </button>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

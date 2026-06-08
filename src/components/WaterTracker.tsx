@@ -8,6 +8,10 @@ import { Illo } from './Illo'
 const GOAL = 4 // Stanley cups a day
 const REMIND_AFTER_MS = 2 * 3_600_000 // nudge if it's been 2h since the last cup
 
+// Rotated so the overdue hint doesn't read as the same filtered-out string all
+// day. Keyed by hour (deterministic — no flicker on re-render).
+const OVERDUE_HINTS = ['been a while, drink up', 'hydrate, gorgeous', 'top up the Stanley', 'water break — you earned it']
+
 interface WaterTrackerProps {
   log: string[] // ritualLog['water'] completion timestamps
   now: Date
@@ -70,7 +74,7 @@ export function WaterTracker({ log, now, onRefill, onUndo }: WaterTrackerProps) 
       )}
 
       {overdue && (
-        <p className="font-mono text-[10px] mt-2 text-center" style={{ color: sky.ink }}>been a while, drink up</p>
+        <p className="font-mono text-[10px] mt-2 text-center" style={{ color: sky.ink }}>{OVERDUE_HINTS[now.getHours() % OVERDUE_HINTS.length]}</p>
       )}
     </div>
   )

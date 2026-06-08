@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import type { Goal, MicroTask, ParkingLotItem, FixedBlock, ImportantDate } from './types'
 import type { Ritual } from './rituals'
 import { DEFAULT_RITUALS } from './rituals'
+import { localDateStr } from './momentum'
 import { goals as mockGoals, microTasks as mockTasks, parkingLotItems as mockParking } from './mock-data'
 
 // ─── Types ──────────────────────────────────────────────────────
@@ -30,6 +31,14 @@ export interface CalendarSource {
   type: 'google' | 'ical'
 }
 
+// A gentle once-a-day emotional read. Off by default — opt-in only — to avoid
+// adding nag load (see RESEARCH.md #5).
+export type Mood = 'rough' | 'ok' | 'good'
+
+// How much of the breakdown the AI does for her. Fading this from 'full' toward
+// 'prompt' is the core self-sufficiency lever (see RESEARCH.md #8).
+export type HelpLevel = 'full' | 'partial' | 'prompt'
+
 export interface AppSettings {
   anthropicApiKey: string
   userName: string
@@ -40,6 +49,8 @@ export interface AppSettings {
   userContext: string // her equipment, spaces, preferences — fed to the AI breakdown
   fixedBlocks: FixedBlock[] // her real anchors (school runs, gym) that shape the day
   importantDates: ImportantDate[] // birthdays, anniversaries to never miss
+  eveningCheckin: boolean // show the optional "how did today feel?" card in the evening
+  helpLevel: HelpLevel // how much the AI breaks goals down vs. coaching her to do it
 }
 
 const CALENDAR_COLORS = ['#C85D3E', '#7B9E6B', '#9B7EC8', '#6BA3BE', '#D4845E', '#C87E9E']
@@ -66,6 +77,28 @@ export interface AppState {
   birthdayMomentYear: number
   streak: number
   tasksCompletedToday: number
+  // Local YYYY-MM-DD strings, one per day she completed anything. Feeds the
+  // forgiving momentum streak (see lib/momentum.ts) instead of a brittle counter.
+  activeDays: string[]
+  // Optional evening mood check-in, keyed by local YYYY-MM-DD.
+  moodLog: Record<string, Mood>
+}
+
+// Stamp today onto the active-days log (idempotent per day).
+function recordActiveDay(days: string[]): string[] {
+  const today = localDateStr(new Date())
+  return days.includes(today) ? days : [...days, today]
+}
+
+// The last n calendar days (today first), as local YYYY-MM-DD strings. Used to
+// back-fill activeDays for returning users whose blob predates it, so their
+// existing streak carries over instead of crashing to a shame-inducing 0.
+function seedRecentDays(n: number): string[] {
+  const count = Math.min(Math.max(Math.floor(n), 0), 60)
+  const t = new Date()
+  return Array.from({ length: count }, (_, i) =>
+    localDateStr(new Date(t.getFullYear(), t.getMonth(), t.getDate() - i))
+  )
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -76,6 +109,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   transitionBufferMin: 3,
   calendarSources: [],
   userContext: '',
+  eveningCheckin: false,
+  helpLevel: 'full',
   fixedBlocks: [
     { id: 'school-drop', title: 'Take kids to school', emoji: '🏫', startHour: 8, startMin: 0, durationMin: 30, travelMin: 0, days: [1, 2, 3, 4, 5], color: '#C87E9E' },
     { id: 'school-pickup', title: 'Pick up kids', emoji: '🏫', startHour: 15, startMin: 0, durationMin: 30, travelMin: 0, days: [1, 2, 3, 4, 5], color: '#C87E9E' },
@@ -108,6 +143,12 @@ const INITIAL_STATE: AppState = {
   birthdayMomentYear: 0,
   streak: 5,
   tasksCompletedToday: 3,
+  // Seed the demo with the last 5 days active so momentum reads sensibly on first run.
+  activeDays: Array.from({ length: 5 }, (_, i) => {
+    const t = new Date()
+    return localDateStr(new Date(t.getFullYear(), t.getMonth(), t.getDate() - i))
+  }),
+  moodLog: {},
 }
 
 // ─── Hook ───────────────────────────────────────────────────────
@@ -124,6 +165,10 @@ function mergeState(parsed: Partial<AppState> | null | undefined): AppState {
     ritualLog: parsed.ritualLog ?? {},
     asyncMeetings: parsed.asyncMeetings ?? [],
     importantDateLog: parsed.importantDateLog ?? {},
+    // Returning users predating activeDays: carry their old streak forward so the
+    // forgiving counter doesn't open at a punishing 0 (the very thing it prevents).
+    activeDays: parsed.activeDays ?? (parsed.streak ? seedRecentDays(parsed.streak) : []),
+    moodLog: parsed.moodLog ?? {},
   }
 }
 
@@ -392,6 +437,7 @@ export function useStore() {
         goals: updatedGoals,
         microTasks: updatedTasks,
         tasksCompletedToday: prev.tasksCompletedToday + 1,
+        activeDays: recordActiveDay(prev.activeDays),
       }
     })
   }, [])
@@ -450,6 +496,7 @@ export function useStore() {
         microTasks: updatedTasks,
         goals: prev.goals.map(g => g.id === goalId ? { ...g, progressPct: 100 } : g),
         tasksCompletedToday: prev.tasksCompletedToday + newlyDone,
+        activeDays: newlyDone > 0 ? recordActiveDay(prev.activeDays) : prev.activeDays,
       }
     })
   }, [])
@@ -473,6 +520,10 @@ export function useStore() {
         tasksCompletedToday: Math.max(0, prev.tasksCompletedToday - reverted),
       }
     })
+  }, [])
+
+  const setMood = useCallback((date: string, mood: Mood) => {
+    setState(prev => ({ ...prev, moodLog: { ...prev.moodLog, [date]: mood } }))
   }, [])
 
   const updateSettings = useCallback((updates: Partial<AppSettings>) => {
@@ -590,6 +641,7 @@ export function useStore() {
         ...prev.ritualLog,
         [ritualId]: [...(prev.ritualLog[ritualId] ?? []), new Date().toISOString()],
       },
+      activeDays: recordActiveDay(prev.activeDays),
     }))
   }, [])
 
@@ -677,6 +729,7 @@ export function useStore() {
     updateImportantDate,
     removeImportantDate,
     queueBirthdayPrep,
+    setMood,
     completeRitual,
     undoRitual,
     updateRituals,

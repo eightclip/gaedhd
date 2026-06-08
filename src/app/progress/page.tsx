@@ -6,13 +6,25 @@ import { categoryColors } from '@/lib/mock-data'
 import { categoryIcon } from '@/lib/icons'
 import { ProgressRing } from '@/components/ProgressRing'
 import { useStore } from '@/lib/store'
+import { computeMomentum } from '@/lib/momentum'
 
 export default function ProgressPage() {
   const store = useStore()
 
   const totalTasks = store.microTasks.length
   const completedTasks = store.microTasks.filter(t => t.status === 'completed').length
+  const momentum = computeMomentum(store.activeDays)
   const overallProgress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
+
+  // Last 7 days of the optional evening mood check-in, oldest → newest.
+  const MOOD_EMOJI = { rough: '😔', ok: '😌', good: '✨' } as const
+  const moodWeek = Array.from({ length: 7 }, (_, i) => {
+    const t = new Date()
+    const d = new Date(t.getFullYear(), t.getMonth(), t.getDate() - (6 - i))
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    return { key, day: ['S', 'M', 'T', 'W', 'T', 'F', 'S'][d.getDay()], mood: store.moodLog[key] }
+  })
+  const hasMoods = moodWeek.some(m => m.mood)
   const totalMinutes = store.microTasks
     .filter(t => t.status === 'completed')
     .reduce((sum, t) => sum + t.durationMin, 0)
@@ -36,8 +48,8 @@ export default function ProgressPage() {
 
       <div className="grid grid-cols-3 gap-3 mb-10">
         <div className="rounded-[1.5rem] p-5 text-center" style={{ backgroundColor: 'var(--today-tint)' }}>
-          <p className="font-display text-4xl font-extrabold leading-none text-today-ink">{store.streak}</p>
-          <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mt-2">streak</p>
+          <p className="font-display text-4xl font-extrabold leading-none text-today-ink">{momentum.streak}</p>
+          <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mt-2">{momentum.weekCount}/7 this week</p>
         </div>
         <div className="rounded-[1.5rem] p-5 text-center bg-success-soft">
           <p className="font-display text-4xl font-extrabold leading-none text-success">{completedTasks}</p>
@@ -48,6 +60,20 @@ export default function ProgressPage() {
           <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mt-2">focused</p>
         </div>
       </div>
+
+      {hasMoods && (
+        <div className="rounded-[1.5rem] p-5 mb-10 bg-card border border-card-border">
+          <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mb-3">how this week felt</p>
+          <div className="grid grid-cols-7 gap-1.5">
+            {moodWeek.map((m, i) => (
+              <div key={i} className="flex flex-col items-center gap-1">
+                <span className="text-xl leading-none">{m.mood ? MOOD_EMOJI[m.mood] : '·'}</span>
+                <span className="font-mono text-[9px] text-muted">{m.day}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <h2 className="font-display text-2xl font-bold tracking-tight mb-4">Goal <span className="italic font-normal">breakdown</span></h2>
 

@@ -41,13 +41,29 @@ How to break it down:
 - phase: a 1-3 word label for the step ("Call", "Prep", "Do it", "Wrap up").
 - energyLevel: "low" | "medium" | "high". cognitiveLoad: "mindless" | "light" | "deep".`
 
+// "Training wheels" — how much of the thinking the AI does for her. Fading the
+// scaffold is what builds self-sufficiency; permanent full help builds dependence
+// (see RESEARCH.md #8). The mode appends to the base prompt.
+type HelpLevel = 'full' | 'partial' | 'prompt'
+const COACHING: Record<HelpLevel, string> = {
+  full: '',
+  partial: `\n\nCOACHING MODE — PARTIAL: She is practicing breaking things down herself.
+Return ONLY tasks[0] — the single first concrete action — and nothing else in tasks.
+She will write the rest. Keep "tasks" to exactly one item.`,
+  prompt: `\n\nCOACHING MODE — PROMPT: Do NOT return any tasks. Instead return a "questions"
+array of 2-3 short, warm questions that help HER break this down herself
+(e.g. "What's the very first thing you'd physically touch?", "What does done look like?").
+Respond ONLY with JSON shaped: {"title": "...", "emoji": "...", "questions": ["...", "..."]}.`,
+}
+
 export async function POST(request: NextRequest) {
-  const { goal, category, lifeArea, apiKey, userContext } = await request.json()
+  const { goal, category, lifeArea, apiKey, userContext, helpLevel } = await request.json()
 
   if (!goal || typeof goal !== 'string') {
     return Response.json({ error: 'Goal text is required' }, { status: 400 })
   }
 
+  const help: HelpLevel = helpLevel === 'partial' || helpLevel === 'prompt' ? helpLevel : 'full'
   const effectiveKey = apiKey || process.env.ANTHROPIC_API_KEY
 
   if (effectiveKey) {
@@ -62,7 +78,7 @@ export async function POST(request: NextRequest) {
         body: JSON.stringify({
           model: 'claude-sonnet-4-20250514',
           max_tokens: 1024,
-          system: SYSTEM_PROMPT,
+          system: SYSTEM_PROMPT + COACHING[help],
           messages: [
             {
               role: 'user',
@@ -90,7 +106,13 @@ export async function POST(request: NextRequest) {
 
       try {
         const parsed = JSON.parse(text)
-        return Response.json({ goal: { title: parsed.title, emoji: parsed.emoji }, sequential: parsed.sequential === true, microTasks: parsed.tasks })
+        return Response.json({
+          goal: { title: parsed.title, emoji: parsed.emoji },
+          sequential: parsed.sequential === true,
+          microTasks: help === 'partial' ? (parsed.tasks ?? []).slice(0, 1) : (parsed.tasks ?? []),
+          questions: parsed.questions ?? [],
+          coaching: help,
+        })
       } catch {
         return Response.json({ error: 'Could not parse Claude response' }, { status: 500 })
       }
@@ -106,10 +128,28 @@ export async function POST(request: NextRequest) {
   const mockTasks = generateMockDecomposition(goal, category)
   // Appointment/scheduling-style goals depend on order; most others don't.
   const mockSequential = /paint|plumb|contractor|dentist|doctor|appointment|repair|fix|install|schedul|book|quote|mechanic|haircut|vet|electrician|handyman|inspect/i.test(goal)
+
+  // Honor the coaching level even without an AI key.
+  if (help === 'prompt') {
+    return Response.json({
+      goal: { title: goal, emoji: getCategoryEmoji(category) },
+      sequential: false,
+      microTasks: [],
+      questions: [
+        "What's the very first thing you'd physically touch or open?",
+        'What does "done" actually look like here?',
+        "What's the smallest piece you could finish in 10 minutes?",
+      ],
+      coaching: 'prompt',
+    })
+  }
+
   return Response.json({
     goal: { title: goal, emoji: getCategoryEmoji(category) },
     sequential: mockSequential,
-    microTasks: mockTasks,
+    microTasks: help === 'partial' ? mockTasks.slice(0, 1) : mockTasks,
+    questions: [],
+    coaching: help,
   })
 }
 
@@ -180,7 +220,7 @@ function generateMockDecomposition(goal: string, _category: string) {
 function getCategoryEmoji(category: string): string {
   const map: Record<string, string> = {
     fitness: '💪', learning: '📚', art: '🎨', home: '🏠',
-    work: '💼', family: '👨‍👩‍👧‍👦', 'self-care': '🧘', errands: '🏃',
+    work: '💼', family: '👨‍👩‍👧‍👦', 'self-care': '🧘', relationships: '💬', errands: '🏃',
   }
   return map[category] || '✨'
 }

@@ -3,6 +3,8 @@ import type { Goal, MicroTask, CalendarEvent, ParkingLotItem, ImportantDate } fr
 import type { CalendarSource } from '@/lib/store'
 import type { Ritual } from '@/lib/rituals'
 import { rankRituals, DEFAULT_RITUALS } from '@/lib/rituals'
+import { computeMomentum } from '@/lib/momentum'
+import { localDateAnchor } from '@/lib/clock'
 import { currentNextActions, availableActions } from '@/lib/schedule'
 import { upcomingDates } from '@/lib/dates'
 import { fetchEventsForSources } from '@/lib/ical'
@@ -51,6 +53,7 @@ export async function GET(request: Request) {
     ritualLog?: Record<string, string[]>
     parkingLot?: ParkingLotItem[]
     streak?: number
+    activeDays?: string[]
     settings?: { calendarSources?: CalendarSource[]; wakeHour?: number; sleepHour?: number; importantDates?: ImportantDate[] }
   }
 
@@ -70,7 +73,7 @@ export async function GET(request: Request) {
   const statuses = rankRituals(rituals, ritualLog, now)
   const ritualsDue = statuses
     .filter(s => s.due)
-    .map(s => ({ id: s.ritual.id, title: s.ritual.title, emoji: s.ritual.emoji, nudge: s.ritual.nudge, tint: s.ritual.tint }))
+    .map(s => ({ id: s.ritual.id, title: s.ritual.title, emoji: s.ritual.emoji, nudge: s.ritual.nudge, nudgeVariants: s.ritual.nudgeVariants ?? [], tint: s.ritual.tint }))
   // The whole rhythm, for the kiosk's at-a-glance row.
   const rhythm = statuses.map(s => {
     const c = s.ritual.cadence
@@ -105,6 +108,12 @@ export async function GET(request: Request) {
   // Stuff waiting in her dump.
   const dumpCount = (state.parkingLot ?? []).length
 
+  // Forgiving momentum streak (falls back to legacy `streak` for old state blobs).
+  // Anchor to HER local date, not the server's UTC date, so the kiosk doesn't
+  // drift a day every evening (same class of bug as the quiet-hours TZ fix).
+  const momentum = computeMomentum(state.activeDays ?? [], localDateAnchor())
+  const streak = state.activeDays?.length ? momentum.streak : (state.streak ?? 0)
+
   // Today's meetings (client passes its local day window to avoid timezone drift).
   const dayStart = params.get('start') ? new Date(params.get('start')!) : startOfDay
   const dayEnd = params.get('end') ? new Date(params.get('end')!) : new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
@@ -125,7 +134,8 @@ export async function GET(request: Request) {
     goals: goalsOut,
     upcoming,
     dumpCount,
-    streak: state.streak ?? 0,
+    streak,
+    weekCount: momentum.weekCount,
     completedToday,
     minutesToday,
     events,

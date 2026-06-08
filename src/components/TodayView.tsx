@@ -17,6 +17,10 @@ import { BreakCard } from './BreakCard'
 import { GymPicker } from './GymPicker'
 import { CaptureSheet } from './CaptureSheet'
 import { BirthdayTakeover } from './BirthdayTakeover'
+import { OverwhelmReset } from './OverwhelmReset'
+import { MoodCheckin } from './MoodCheckin'
+import { DecideHelper } from './DecideHelper'
+import { FocusSession } from './FocusSession'
 import { RECIPIENT_NAME } from '@/lib/letter'
 import { Illo } from './Illo'
 import { ILLO, DONE_ILLOS, pickDaily } from '@/lib/illustrations'
@@ -24,6 +28,7 @@ import { categoryIcon, BREAK_ICON } from '@/lib/icons'
 import { categoryColors } from '@/lib/mock-data'
 import type { CalendarEvent, TimelineItem } from '@/lib/types'
 import { useStore } from '@/lib/store'
+import { computeMomentum, localDateStr } from '@/lib/momentum'
 import { computeGaps, slotTasks, currentNextActions, availableActions, materializeFixedBlocks, ymd } from '@/lib/schedule'
 import { ProgressRing } from './ProgressRing'
 
@@ -55,6 +60,11 @@ export function TodayView() {
   const [breakMode, setBreakMode] = useState<{ label: string; mins: number; promptWater: boolean } | null>(null)
   const [inbox, setInbox] = useState<{ id: string; raw_text: string | null; source: string }[]>([])
   const [birthdayDismissed, setBirthdayDismissed] = useState(false)
+  const [overwhelmed, setOverwhelmed] = useState(false)
+  const [deciding, setDeciding] = useState(false)
+  const [focusing, setFocusing] = useState(false)
+  // When she uses the decide helper to commit to one thing, it jumps to the front.
+  const [focusId, setFocusId] = useState<string | null>(null)
   // Preview the takeover any day via /?birthday-preview (won't burn the real
   // once-a-year moment). Safe to read window lazily: the takeover is gated on
   // store.loaded, which is false at hydration, so there's no markup mismatch.
@@ -125,7 +135,24 @@ export function TodayView() {
   // which is what fills her day and the "Just do this" stack.
   const nextActions = currentNextActions(store.goals, store.microTasks)
   const available = availableActions(store.goals, store.microTasks)
-  const topTasks = available.slice(0, 5)
+  // If she committed to one via the decide helper, float it to the front.
+  const orderedAvailable = (() => {
+    if (!focusId) return available
+    const idx = available.findIndex(t => t.id === focusId)
+    if (idx <= 0) return available
+    return [available[idx], ...available.slice(0, idx), ...available.slice(idx + 1)]
+  })()
+  const topTasks = orderedAvailable.slice(0, 5)
+  // Drop a stale focus pick once that task is done/gone, so it can't linger.
+  const focusStillValid = !focusId || available.some(t => t.id === focusId)
+  useEffect(() => { if (!focusStillValid) setFocusId(null) }, [focusStillValid])
+  // The single lightest thing she could do — shortest, least cognitively heavy —
+  // for the overwhelm reset, which collapses the day down to just one tiny step.
+  const LOAD_RANK = { mindless: 0, light: 1, deep: 2 } as const
+  const lightestTask = [...available].sort((a, b) =>
+    a.microTask.durationMin - b.microTask.durationMin ||
+    LOAD_RANK[a.microTask.cognitiveLoad] - LOAD_RANK[b.microTask.cognitiveLoad]
+  )[0] ?? null
 
   // Her real anchors (school runs, gym) become hard blocks the day schedules around.
   const fixedEvents = materializeFixedBlocks(store.settings.fixedBlocks, now)
@@ -155,6 +182,7 @@ export function TodayView() {
 
   const completedTasks = store.microTasks.filter(t => t.status === 'completed').length
   const totalMinutes = store.microTasks.filter(t => t.status === 'completed').reduce((sum, t) => sum + t.durationMin, 0)
+  const momentum = computeMomentum(store.activeDays, now)
   const greeting = now.getHours() < 12 ? 'morning' : now.getHours() < 17 ? 'afternoon' : 'evening'
   const noCalendars = !calLoading && calCount === 0
 
@@ -188,7 +216,7 @@ export function TodayView() {
   const header = (sizes: { day: string; num: string; month: string }) => (
     <div className="mb-10">
       <p className="font-mono text-[11px] uppercase tracking-[0.25em] text-muted mb-3">
-        Good {greeting} · {store.streak} day streak
+        Good {greeting}{momentum.streak > 0 ? ` · ${momentum.streak} day streak` : ` · ${momentum.weekCount} active days this week`}
       </p>
       <h1 className={`font-display font-bold tracking-tight leading-[0.95] ${sizes.day}`}>{format(now, 'EEEE')}</h1>
       <div className="flex items-end gap-3 mt-1">
@@ -198,6 +226,12 @@ export function TodayView() {
           <p className="font-mono text-xs text-muted mt-1.5">{format(now, 'h:mm a')}</p>
         </div>
       </div>
+      <button
+        onClick={() => { setDeciding(false); setFocusing(false); setOverwhelmed(true) }}
+        className="mt-5 inline-flex items-center gap-1.5 rounded-full bg-muted-light px-3.5 py-1.5 text-xs font-semibold text-muted hover:text-foreground hover:bg-muted-light/70 transition-colors"
+      >
+        🫧 Feeling overwhelmed?
+      </button>
     </div>
   )
 
@@ -232,6 +266,15 @@ export function TodayView() {
 
   const datesCard = <ImportantDates dates={store.settings.importantDates} now={now} />
 
+  // Optional evening mood check-in (opt-in). Shows in the last ~2h before sleep.
+  // Guard the window so a post-midnight sleepHour doesn't make it negative (always-on).
+  const todayKey = localDateStr(now)
+  const eveningStartHour = Math.floor(store.settings.sleepHour) - 2
+  const showCheckin = store.settings.eveningCheckin && eveningStartHour >= 0 && now.getHours() >= eveningStartHour
+  const moodCheckin = showCheckin
+    ? <MoodCheckin todayMood={store.moodLog[todayKey]} onPick={(m) => store.setMood(todayKey, m)} />
+    : null
+
   const water = (
     <WaterTracker
       log={store.ritualLog['water'] ?? []}
@@ -243,7 +286,17 @@ export function TodayView() {
 
   const justDoThis = (
     <section className="mb-10">
-      <Head lead="Just do" accent="this" className="mb-4" />
+      <div className="flex items-center justify-between mb-4">
+        <Head lead="Just do" accent="this" />
+        {!breakMode && nextActions.length >= 2 && (
+          <button
+            onClick={() => { setOverwhelmed(false); setFocusing(false); setDeciding(true) }}
+            className="inline-flex items-center gap-1.5 rounded-full bg-muted-light px-3 py-1.5 text-xs font-semibold text-muted hover:text-foreground transition-colors"
+          >
+            🤔 Stuck deciding?
+          </button>
+        )}
+      </div>
       {breakMode ? (
         <BreakCard
           label={breakMode.label}
@@ -286,6 +339,14 @@ export function TodayView() {
               )
             })}
           </div>
+
+          {/* Body doubling: start a co-working focus block, optionally with John */}
+          <button
+            onClick={() => { setOverwhelmed(false); setDeciding(false); setFocusing(true) }}
+            className="w-full mt-3 rounded-2xl bg-today-tint py-3.5 text-sm font-bold text-today-ink hover:opacity-90 active:scale-[0.99] transition-all flex items-center justify-center gap-2"
+          >
+            🤝 Focus together
+          </button>
         </>
       )}
     </section>
@@ -326,8 +387,8 @@ export function TodayView() {
   const winsTiles = (
     <div className="grid grid-cols-3 gap-3 mb-10">
       <div className="rounded-[1.5rem] p-5" style={{ backgroundColor: 'var(--today-tint)' }}>
-        <p className="font-display text-4xl font-extrabold leading-none text-today-ink">{store.streak}</p>
-        <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mt-2">streak</p>
+        <p className="font-display text-4xl font-extrabold leading-none text-today-ink">{momentum.streak}</p>
+        <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mt-2">{momentum.weekCount}/7 this week</p>
       </div>
       <div className="rounded-[1.5rem] p-5 bg-success-soft">
         <p className="font-display text-4xl font-extrabold leading-none text-success">{completedTasks}</p>
@@ -409,6 +470,7 @@ export function TodayView() {
         {flowSection}
       </div>
       <div className="space-y-10 pt-2">
+        {moodCheckin}
         {water}
         {winsTiles}
         {goalsRail}
@@ -425,6 +487,7 @@ export function TodayView() {
       </div>
       {header({ day: 'text-6xl', num: 'text-[7rem]', month: 'text-xl' })}
       {datesCard}
+      {moodCheckin}
       <div className="mb-10">{water}</div>
       {meetingCopilot}
       {presence}
@@ -452,6 +515,21 @@ export function TodayView() {
       {showBirthday && (
         <BirthdayTakeover name={store.settings.userName || RECIPIENT_NAME} onDismiss={dismissBirthday} />
       )}
+      {overwhelmed && !showBirthday && (
+        <OverwhelmReset
+          task={lightestTask}
+          onCompleteTask={store.completeTask}
+          onClose={() => setOverwhelmed(false)}
+        />
+      )}
+      {deciding && !showBirthday && (
+        <DecideHelper
+          candidates={nextActions}
+          onPick={(id) => { setFocusId(id); setDeciding(false) }}
+          onClose={() => setDeciding(false)}
+        />
+      )}
+      {focusing && !showBirthday && <FocusSession onClose={() => setFocusing(false)} />}
       {desktop}
       {mobile}
       {fab}

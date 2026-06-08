@@ -19,6 +19,7 @@ interface KioskData {
   upcoming: { label: string; daysUntil: number; kind: string; years: number | null }[]
   dumpCount: number
   streak: number
+  weekCount?: number
   completedToday: number
   minutesToday: number
   events: KioskEvent[]
@@ -245,7 +246,7 @@ export default function KioskPage() {
         <div className="col-span-4 rounded-[1.5vw] bg-success-soft p-[1.4vw] flex items-center justify-around min-h-0 overflow-hidden">
           <div className="text-center">
             <p className="font-display text-[3vw] font-extrabold leading-none text-success">{data?.streak ?? 0}</p>
-            <p className="font-mono text-[0.85vw] uppercase tracking-widest text-muted mt-[0.4vw]">streak</p>
+            <p className="font-mono text-[0.85vw] uppercase tracking-widest text-muted mt-[0.4vw]">{data?.weekCount != null ? `${data.weekCount}/7 wk` : 'streak'}</p>
           </div>
           <div className="text-center">
             <p className="font-display text-[3vw] font-extrabold leading-none">{data?.completedToday ?? 0}</p>

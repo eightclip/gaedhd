@@ -65,6 +65,18 @@ export default function SettingsPage() {
           <h2 className="font-bold text-sm">Notifications</h2>
         </div>
         <PushToggle />
+        <label className="mt-3 flex items-center justify-between gap-3 rounded-2xl bg-card border border-card-border p-3.5 cursor-pointer">
+          <span className="text-sm">
+            <span className="font-semibold">Evening check-in</span>
+            <span className="block text-xs text-muted mt-0.5">A gentle &ldquo;how did today feel?&rdquo; in the evening. Off by default.</span>
+          </span>
+          <input
+            type="checkbox"
+            checked={store.settings.eveningCheckin}
+            onChange={(e) => store.updateSettings({ eveningCheckin: e.target.checked })}
+            className="accent-accent w-5 h-5 shrink-0"
+          />
+        </label>
       </section>
 
       {/* Presence */}
@@ -396,6 +408,40 @@ export default function SettingsPage() {
             placeholder="e.g. I have a kettlebell and a resistance band in my room. There's a couch in the office I can use for split squats. I like short workouts in the morning. Long instructions overwhelm me, so keep steps tiny."
             className="w-full bg-muted-light rounded-xl px-4 py-3 text-sm resize-none h-32 focus:outline-none focus:ring-2 focus:ring-accent/30 placeholder:text-muted leading-relaxed"
           />
+        </div>
+      </section>
+
+      {/* Help level — training wheels */}
+      <section className="mb-6">
+        <div className="flex items-center gap-2 mb-2">
+          <Sparkles size={16} className="text-accent" />
+          <h2 className="font-bold text-sm">How much help with breakdowns</h2>
+        </div>
+        <div className="bg-card border border-card-border rounded-2xl p-4">
+          <p className="text-xs text-muted mb-3">
+            As you get the hang of it, dial the AI back so you do more of the thinking. There&apos;s no wrong setting — move it whenever.
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            {([
+              { value: 'full', label: 'Full', sub: 'AI does the steps' },
+              { value: 'partial', label: 'Starter', sub: 'AI gives step 1' },
+              { value: 'prompt', label: 'Coach', sub: 'AI just asks' },
+            ] as const).map((opt) => {
+              const active = store.settings.helpLevel === opt.value
+              return (
+                <button
+                  key={opt.value}
+                  onClick={() => store.updateSettings({ helpLevel: opt.value })}
+                  className={`rounded-xl p-3 text-center transition-colors border ${
+                    active ? 'bg-accent text-white border-accent' : 'bg-muted-light text-foreground border-transparent hover:bg-foreground/10'
+                  }`}
+                >
+                  <span className="block text-sm font-bold">{opt.label}</span>
+                  <span className={`block text-[10px] mt-0.5 ${active ? 'text-white/80' : 'text-muted'}`}>{opt.sub}</span>
+                </button>
+              )
+            })}
+          </div>
         </div>
       </section>
 

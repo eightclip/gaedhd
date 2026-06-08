@@ -53,6 +53,10 @@ const MORNING_PROMPT_ENABLED = process.env.MORNING_PROMPT_ENABLED === "true";
 const MORNING_HOUR = parseInt(process.env.MORNING_HOUR ?? "9", 10);
 const MORNING_CHAT_ID = process.env.MORNING_CHAT_ID || process.env.NUDGE_CHAT_ID;
 
+// John's chat, for body-doubling pings (she starts a focus block, he gets asked
+// to work alongside her). Optional — /focus still works without it.
+const JOHN_CHAT_ID = process.env.JOHN_CHAT_ID;
+
 // Parse the allowlist once at startup
 const ALLOWED_CHAT_IDS = new Set(
   (process.env.ALLOWED_CHAT_IDS || "")
@@ -105,6 +109,11 @@ GaeDHD bot — your ADHD second brain, now in Telegram.
 • Send me a photo of a handwritten list → I'll read it and add each item.
 • /next — what to focus on right now.
 • /today — your full snapshot: task, rituals, streak, and next meeting.
+
+*When it's a lot*
+• /overwhelmed — I'll shrink the whole day down to one tiny thing.
+• /decide — stuck choosing? I'll help you pick.
+• /focus — start a focus block (I can ask John to body-double).
 
 Everything lands in your GaeDHD app at https://gaedhd.jmj.fyi for you to accept, skip, or reschedule. I never delete anything — I only add.
 `.trim();
@@ -257,6 +266,99 @@ bot.command("today", async (ctx) => {
 });
 
 // ---------------------------------------------------------------------------
+// /overwhelmed — for the flooded moments. Grounding first, then ONE tiny thing
+// (the shortest pending), never the whole list. Mirrors the in-app reset.
+// ---------------------------------------------------------------------------
+const OVERWHELM_OPENERS = [
+  "Hey. Breathe. You don't have to do all of it — that feeling is the ADHD, not you.",
+  "Okay, pause. In through the nose, out slow. You're allowed to do just one small thing.",
+  "Take a breath with me. We're going to shrink this down to one tiny step, that's it.",
+];
+
+bot.command("overwhelmed", async (ctx) => {
+  try {
+    const data = await fetchNow();
+    // Pick the lightest thing: shortest of upNext, else the current task.
+    const pool = data.upNext ?? [];
+    const tiny = pool.length
+      ? [...pool].sort((a, b) => (a.durationMin ?? 99) - (b.durationMin ?? 99))[0]
+      : data.task;
+    const opener = OVERWHELM_OPENERS[Math.floor(Math.random() * OVERWHELM_OPENERS.length)];
+    const lines = [opener, ""];
+    if (tiny) {
+      lines.push(`*Just this one thing:*`);
+      lines.push(`${tiny.title}${tiny.durationMin ? ` — ${tiny.durationMin} min` : ""}`);
+      lines.push("");
+      lines.push("Do that, then stop. The rest can wait. 💛");
+    } else {
+      lines.push("Nothing tiny is even waiting. So just rest — you've earned it. 💛");
+    }
+    await ctx.reply(lines.join("\n"), { parse_mode: "Markdown" });
+  } catch (err) {
+    console.error("[/overwhelmed] Error:", err.message);
+    await ctx.reply("Breathe. One thing at a time. I'm here when the connection's back.");
+  }
+});
+
+// ---------------------------------------------------------------------------
+// /decide — decision paralysis helper. Lists a few candidates and the framework
+// (timebox + "60% right"), without choosing for her.
+// ---------------------------------------------------------------------------
+bot.command("decide", async (ctx) => {
+  try {
+    const data = await fetchNow();
+    const pool = data.upNext ?? [];
+    const lines = [
+      "Stuck? Here's the rule: *pick the one that's 60% right.* Done beats perfect.",
+      "Give yourself 2 minutes, then just go with your gut. 💛",
+      "",
+    ];
+    if (pool.length) {
+      lines.push("*Your options:*");
+      for (const t of pool.slice(0, 5)) {
+        lines.push(`• ${t.title}${t.durationMin ? ` (${t.durationMin} min)` : ""}`);
+      }
+    } else if (data.task) {
+      lines.push(`Honestly? There's really only one thing: *${data.task.title}*. Start there.`);
+    } else {
+      lines.push("Nothing's even pending — so this one's easy. Go rest. 💛");
+    }
+    await ctx.reply(lines.join("\n"), { parse_mode: "Markdown" });
+  } catch (err) {
+    console.error("[/decide] Error:", err.message);
+    await ctx.reply("Pick the one that's 60% right and just start. You've got it.");
+  }
+});
+
+// ---------------------------------------------------------------------------
+// /focus [minutes] — start a body-doubling focus block and (optionally) ping John
+// to work alongside her. Doing focused work near another person lowers the
+// activation energy to start.
+// ---------------------------------------------------------------------------
+bot.command("focus", async (ctx) => {
+  const arg = parseInt((ctx.match || "").trim(), 10);
+  const minutes = Number.isFinite(arg) && arg > 0 ? Math.min(120, arg) : 25;
+  let johnPinged = false;
+  if (JOHN_CHAT_ID) {
+    try {
+      await bot.api.sendMessage(
+        JOHN_CHAT_ID,
+        `💛 She's starting a ${minutes}-minute focus session. Want to body-double? Work alongside her and reply 👍 so she knows you're in.`
+      );
+      johnPinged = true;
+    } catch (err) {
+      console.error("[/focus] ping John error:", err.message);
+    }
+  }
+  const lines = [
+    `⏱️ ${minutes}-minute focus session — go. Pick one thing and just begin.`,
+    johnPinged ? "I asked John to join you. 💛" : "",
+    "I'll be here. You've got this.",
+  ].filter(Boolean);
+  await ctx.reply(lines.join("\n"));
+});
+
+// ---------------------------------------------------------------------------
 // Plain text messages → a real conversation. She chats like she would with a
 // person; the bot only adds to her list when she actually asks it to (via the
 // add_to_list tool). No AI key configured? Fall back to dumb capture so nothing
@@ -374,6 +476,16 @@ bot.on("message:photo", async (ctx) => {
 // ---------------------------------------------------------------------------
 // Track last nudge per ritual id to avoid repeating within an hour
 const lastNudgeSent = new Map(); // ritualId -> Date
+// How many times each ritual has been nudged, to rotate through phrasings.
+// ADHD brains habituate to identical repeated alerts and start tuning them out,
+// so we cycle the wording instead of sending the same string every time.
+const nudgeCounts = new Map(); // ritualId -> number
+
+function pickNudgeText(ritual, count) {
+  const pool = [ritual.nudge, ...(ritual.nudgeVariants ?? [])].filter(Boolean);
+  if (pool.length === 0) return `Time for: ${ritual.title}`;
+  return pool[count % pool.length];
+}
 
 if (NUDGES_ENABLED) {
   if (!NUDGE_CHAT_ID) {
@@ -409,13 +521,13 @@ if (NUDGES_ENABLED) {
 
       if (!ritual) return; // all recently nudged
 
-      const message = ritual.nudge
-        ? `${ritual.emoji ?? ""} ${ritual.nudge}`
-        : `${ritual.emoji ?? ""} Time for: ${ritual.title}`;
+      const count = nudgeCounts.get(ritual.id) ?? 0;
+      const message = `${ritual.emoji ?? ""} ${pickNudgeText(ritual, count)}`.trim();
 
       try {
         await bot.api.sendMessage(NUDGE_CHAT_ID, message);
         lastNudgeSent.set(ritual.id, new Date());
+        nudgeCounts.set(ritual.id, count + 1);
         console.log(`[nudge] Sent nudge for ritual "${ritual.title}" to chat ${NUDGE_CHAT_ID}`);
       } catch (err) {
         console.error("[nudge] sendMessage error:", err.message);
@@ -538,6 +650,8 @@ IMPORTANT — location tasks: many of her tasks belong to a specific room, and t
 4. Don't nag. Ask about the room at most once per task. If she says it doesn't matter, "anywhere", "no room", or the task clearly isn't tied to a place, just use add_to_list as normal.
 
 Rooms: office, kitchen, bedroom, living_room, yard, studio.
+
+SELF-ADVOCACY: when she's avoiding a hard conversation or asks for help saying something — "help me say...", "I need to tell...", "how do I tell...", "I'm scared to text...", "I don't know how to ask..." — don't just sympathize. Draft her a short, kind, ready-to-send script she can copy, using "I" statements (e.g. "I feel ___ when ___, and I'd really appreciate ___"). Keep it warm and honest, never aggressive or groveling. One or two lines. Then a quick word of encouragement that she can absolutely send it. This is a real skill she's building — RSD makes her want to withdraw, and a good script lowers the bar to reach out. Do NOT add it to her list unless she asks.
 
 Keep replies short, like a text message. No long paragraphs, no bullet lists unless she asks for one.`;
 
