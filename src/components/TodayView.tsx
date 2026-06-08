@@ -228,9 +228,10 @@ export function TodayView() {
       </div>
       <button
         onClick={() => { store.trackUse('overwhelm'); setDeciding(false); setFocusing(false); setOverwhelmed(true) }}
-        className="mt-5 inline-flex items-center gap-1.5 rounded-full bg-muted-light px-3.5 py-1.5 text-xs font-semibold text-muted hover:text-foreground hover:bg-muted-light/70 transition-colors"
+        className="mt-5 inline-flex items-center gap-2 rounded-full px-5 py-3 text-base font-bold text-today-ink hover:opacity-90 active:scale-95 transition-all"
+        style={{ backgroundColor: 'var(--today-tint)', boxShadow: 'inset 0 0 0 1.5px var(--today-ink)' }}
       >
-        🫧 Feeling overwhelmed?
+        <span className="text-xl">🫧</span> Feeling overwhelmed?
       </button>
     </div>
   )
@@ -291,9 +292,10 @@ export function TodayView() {
         {!breakMode && nextActions.length >= 2 && (
           <button
             onClick={() => { store.trackUse('decide'); setOverwhelmed(false); setFocusing(false); setDeciding(true) }}
-            className="inline-flex items-center gap-1.5 rounded-full bg-muted-light px-3 py-1.5 text-xs font-semibold text-muted hover:text-foreground transition-colors"
+            className="shrink-0 inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-bold text-today-ink hover:opacity-90 active:scale-95 transition-all"
+            style={{ backgroundColor: 'var(--today-tint)', boxShadow: 'inset 0 0 0 1.5px var(--today-ink)' }}
           >
-            🤔 Stuck deciding?
+            <span className="text-lg">🤔</span> Stuck deciding?
           </button>
         )}
       </div>
@@ -343,9 +345,10 @@ export function TodayView() {
           {/* Body doubling: start a co-working focus block, optionally with John */}
           <button
             onClick={() => { store.trackUse('focus'); setOverwhelmed(false); setDeciding(false); setFocusing(true) }}
-            className="w-full mt-3 rounded-2xl bg-today-tint py-3.5 text-sm font-bold text-today-ink hover:opacity-90 active:scale-[0.99] transition-all flex items-center justify-center gap-2"
+            className="w-full mt-3 rounded-2xl py-4 text-base font-bold text-today-ink hover:opacity-90 active:scale-[0.99] transition-all flex items-center justify-center gap-2"
+            style={{ backgroundColor: 'var(--today-tint)', boxShadow: 'inset 0 0 0 1.5px var(--today-ink)' }}
           >
-            🤝 Focus together
+            <span className="text-xl">🤝</span> Focus together
           </button>
         </>
       )}
