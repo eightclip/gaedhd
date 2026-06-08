@@ -292,6 +292,36 @@ bot.command("overwhelmed", async (ctx) => {
 });
 
 // ---------------------------------------------------------------------------
+// /decide — decision paralysis helper. Lists a few candidates and the framework
+// (timebox + "60% right"), without choosing for her.
+// ---------------------------------------------------------------------------
+bot.command("decide", async (ctx) => {
+  try {
+    const data = await fetchNow();
+    const pool = data.upNext ?? [];
+    const lines = [
+      "Stuck? Here's the rule: *pick the one that's 60% right.* Done beats perfect.",
+      "Give yourself 2 minutes, then just go with your gut. 💛",
+      "",
+    ];
+    if (pool.length) {
+      lines.push("*Your options:*");
+      for (const t of pool.slice(0, 5)) {
+        lines.push(`• ${t.title}${t.durationMin ? ` (${t.durationMin} min)` : ""}`);
+      }
+    } else if (data.task) {
+      lines.push(`Honestly? There's really only one thing: *${data.task.title}*. Start there.`);
+    } else {
+      lines.push("Nothing's even pending — so this one's easy. Go rest. 💛");
+    }
+    await ctx.reply(lines.join("\n"), { parse_mode: "Markdown" });
+  } catch (err) {
+    console.error("[/decide] Error:", err.message);
+    await ctx.reply("Pick the one that's 60% right and just start. You've got it.");
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Plain text messages → a real conversation. She chats like she would with a
 // person; the bot only adds to her list when she actually asks it to (via the
 // add_to_list tool). No AI key configured? Fall back to dumb capture so nothing

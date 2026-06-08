@@ -19,6 +19,7 @@ import { CaptureSheet } from './CaptureSheet'
 import { BirthdayTakeover } from './BirthdayTakeover'
 import { OverwhelmReset } from './OverwhelmReset'
 import { MoodCheckin } from './MoodCheckin'
+import { DecideHelper } from './DecideHelper'
 import { RECIPIENT_NAME } from '@/lib/letter'
 import { Illo } from './Illo'
 import { ILLO, DONE_ILLOS, pickDaily } from '@/lib/illustrations'
@@ -59,6 +60,9 @@ export function TodayView() {
   const [inbox, setInbox] = useState<{ id: string; raw_text: string | null; source: string }[]>([])
   const [birthdayDismissed, setBirthdayDismissed] = useState(false)
   const [overwhelmed, setOverwhelmed] = useState(false)
+  const [deciding, setDeciding] = useState(false)
+  // When she uses the decide helper to commit to one thing, it jumps to the front.
+  const [focusId, setFocusId] = useState<string | null>(null)
   // Preview the takeover any day via /?birthday-preview (won't burn the real
   // once-a-year moment). Safe to read window lazily: the takeover is gated on
   // store.loaded, which is false at hydration, so there's no markup mismatch.
@@ -129,7 +133,14 @@ export function TodayView() {
   // which is what fills her day and the "Just do this" stack.
   const nextActions = currentNextActions(store.goals, store.microTasks)
   const available = availableActions(store.goals, store.microTasks)
-  const topTasks = available.slice(0, 5)
+  // If she committed to one via the decide helper, float it to the front.
+  const orderedAvailable = (() => {
+    if (!focusId) return available
+    const idx = available.findIndex(t => t.id === focusId)
+    if (idx <= 0) return available
+    return [available[idx], ...available.slice(0, idx), ...available.slice(idx + 1)]
+  })()
+  const topTasks = orderedAvailable.slice(0, 5)
   // The single lightest thing she could do — shortest, least cognitively heavy —
   // for the overwhelm reset, which collapses the day down to just one tiny step.
   const LOAD_RANK = { mindless: 0, light: 1, deep: 2 } as const
@@ -268,7 +279,17 @@ export function TodayView() {
 
   const justDoThis = (
     <section className="mb-10">
-      <Head lead="Just do" accent="this" className="mb-4" />
+      <div className="flex items-center justify-between mb-4">
+        <Head lead="Just do" accent="this" />
+        {!breakMode && nextActions.length >= 2 && (
+          <button
+            onClick={() => setDeciding(true)}
+            className="inline-flex items-center gap-1.5 rounded-full bg-muted-light px-3 py-1.5 text-xs font-semibold text-muted hover:text-foreground transition-colors"
+          >
+            🤔 Stuck deciding?
+          </button>
+        )}
+      </div>
       {breakMode ? (
         <BreakCard
           label={breakMode.label}
@@ -484,6 +505,13 @@ export function TodayView() {
           task={lightestTask}
           onCompleteTask={store.completeTask}
           onClose={() => setOverwhelmed(false)}
+        />
+      )}
+      {deciding && (
+        <DecideHelper
+          candidates={nextActions}
+          onPick={(id) => { setFocusId(id); setDeciding(false) }}
+          onClose={() => setDeciding(false)}
         />
       )}
       {desktop}

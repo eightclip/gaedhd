@@ -35,6 +35,10 @@ export interface CalendarSource {
 // adding nag load (see RESEARCH.md #5).
 export type Mood = 'rough' | 'ok' | 'good'
 
+// How much of the breakdown the AI does for her. Fading this from 'full' toward
+// 'prompt' is the core self-sufficiency lever (see RESEARCH.md #8).
+export type HelpLevel = 'full' | 'partial' | 'prompt'
+
 export interface AppSettings {
   anthropicApiKey: string
   userName: string
@@ -46,6 +50,7 @@ export interface AppSettings {
   fixedBlocks: FixedBlock[] // her real anchors (school runs, gym) that shape the day
   importantDates: ImportantDate[] // birthdays, anniversaries to never miss
   eveningCheckin: boolean // show the optional "how did today feel?" card in the evening
+  helpLevel: HelpLevel // how much the AI breaks goals down vs. coaching her to do it
 }
 
 const CALENDAR_COLORS = ['#C85D3E', '#7B9E6B', '#9B7EC8', '#6BA3BE', '#D4845E', '#C87E9E']
@@ -94,6 +99,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   calendarSources: [],
   userContext: '',
   eveningCheckin: false,
+  helpLevel: 'full',
   fixedBlocks: [
     { id: 'school-drop', title: 'Take kids to school', emoji: '🏫', startHour: 8, startMin: 0, durationMin: 30, travelMin: 0, days: [1, 2, 3, 4, 5], color: '#C87E9E' },
     { id: 'school-pickup', title: 'Pick up kids', emoji: '🏫', startHour: 15, startMin: 0, durationMin: 30, travelMin: 0, days: [1, 2, 3, 4, 5], color: '#C87E9E' },

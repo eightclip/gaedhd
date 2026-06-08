@@ -411,6 +411,40 @@ export default function SettingsPage() {
         </div>
       </section>
 
+      {/* Help level — training wheels */}
+      <section className="mb-6">
+        <div className="flex items-center gap-2 mb-2">
+          <Sparkles size={16} className="text-accent" />
+          <h2 className="font-bold text-sm">How much help with breakdowns</h2>
+        </div>
+        <div className="bg-card border border-card-border rounded-2xl p-4">
+          <p className="text-xs text-muted mb-3">
+            As you get the hang of it, dial the AI back so you do more of the thinking. There&apos;s no wrong setting — move it whenever.
+          </p>
+          <div className="grid grid-cols-3 gap-2">
+            {([
+              { value: 'full', label: 'Full', sub: 'AI does the steps' },
+              { value: 'partial', label: 'Starter', sub: 'AI gives step 1' },
+              { value: 'prompt', label: 'Coach', sub: 'AI just asks' },
+            ] as const).map((opt) => {
+              const active = store.settings.helpLevel === opt.value
+              return (
+                <button
+                  key={opt.value}
+                  onClick={() => store.updateSettings({ helpLevel: opt.value })}
+                  className={`rounded-xl p-3 text-center transition-colors border ${
+                    active ? 'bg-accent text-white border-accent' : 'bg-muted-light text-foreground border-transparent hover:bg-foreground/10'
+                  }`}
+                >
+                  <span className="block text-sm font-bold">{opt.label}</span>
+                  <span className={`block text-[10px] mt-0.5 ${active ? 'text-white/80' : 'text-muted'}`}>{opt.sub}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      </section>
+
       {/* User Preferences */}
       <section className="mb-6">
         <div className="flex items-center gap-2 mb-2">
