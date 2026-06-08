@@ -227,7 +227,7 @@ export function TodayView() {
         </div>
       </div>
       <button
-        onClick={() => { setDeciding(false); setFocusing(false); setOverwhelmed(true) }}
+        onClick={() => { store.trackUse('overwhelm'); setDeciding(false); setFocusing(false); setOverwhelmed(true) }}
         className="mt-5 inline-flex items-center gap-1.5 rounded-full bg-muted-light px-3.5 py-1.5 text-xs font-semibold text-muted hover:text-foreground hover:bg-muted-light/70 transition-colors"
       >
         🫧 Feeling overwhelmed?
@@ -272,7 +272,7 @@ export function TodayView() {
   const eveningStartHour = Math.floor(store.settings.sleepHour) - 2
   const showCheckin = store.settings.eveningCheckin && eveningStartHour >= 0 && now.getHours() >= eveningStartHour
   const moodCheckin = showCheckin
-    ? <MoodCheckin todayMood={store.moodLog[todayKey]} onPick={(m) => store.setMood(todayKey, m)} />
+    ? <MoodCheckin todayMood={store.moodLog[todayKey]} onPick={(m) => { store.trackUse('mood'); store.setMood(todayKey, m) }} />
     : null
 
   const water = (
@@ -290,7 +290,7 @@ export function TodayView() {
         <Head lead="Just do" accent="this" />
         {!breakMode && nextActions.length >= 2 && (
           <button
-            onClick={() => { setOverwhelmed(false); setFocusing(false); setDeciding(true) }}
+            onClick={() => { store.trackUse('decide'); setOverwhelmed(false); setFocusing(false); setDeciding(true) }}
             className="inline-flex items-center gap-1.5 rounded-full bg-muted-light px-3 py-1.5 text-xs font-semibold text-muted hover:text-foreground transition-colors"
           >
             🤔 Stuck deciding?
@@ -308,7 +308,7 @@ export function TodayView() {
       ) : (
         <>
           {topTasks.length > 0 ? (
-            <JustDoThisCard tasks={topTasks} onComplete={store.completeTask} onSkip={store.skipTask} />
+            <JustDoThisCard tasks={topTasks} onComplete={store.completeTask} onSkip={store.skipTask} onEvent={store.trackUse} />
           ) : store.goals.length > 0 ? (
             <div className="bg-success-soft rounded-[2rem] p-10 text-center">
               <Illo src={pickDaily(DONE_ILLOS)} className="h-28 w-auto mx-auto mb-4" />
@@ -342,7 +342,7 @@ export function TodayView() {
 
           {/* Body doubling: start a co-working focus block, optionally with John */}
           <button
-            onClick={() => { setOverwhelmed(false); setDeciding(false); setFocusing(true) }}
+            onClick={() => { store.trackUse('focus'); setOverwhelmed(false); setDeciding(false); setFocusing(true) }}
             className="w-full mt-3 rounded-2xl bg-today-tint py-3.5 text-sm font-bold text-today-ink hover:opacity-90 active:scale-[0.99] transition-all flex items-center justify-center gap-2"
           >
             🤝 Focus together

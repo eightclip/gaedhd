@@ -82,6 +82,11 @@ export interface AppState {
   activeDays: string[]
   // Optional evening mood check-in, keyed by local YYYY-MM-DD.
   moodLog: Record<string, Mood>
+  // Private tap-counts for the new surfaces (overwhelm/decide/focus/tiny/reframe),
+  // so we can see what she actually uses and prune what she doesn't. Counts only —
+  // no content, no timestamps. Lives in her own synced state; surfaced to John via
+  // the bot's /usage command.
+  featureUsage: Record<string, number>
 }
 
 // Stamp today onto the active-days log (idempotent per day).
@@ -149,6 +154,7 @@ const INITIAL_STATE: AppState = {
     return localDateStr(new Date(t.getFullYear(), t.getMonth(), t.getDate() - i))
   }),
   moodLog: {},
+  featureUsage: {},
 }
 
 // ─── Hook ───────────────────────────────────────────────────────
@@ -169,6 +175,7 @@ function mergeState(parsed: Partial<AppState> | null | undefined): AppState {
     // forgiving counter doesn't open at a punishing 0 (the very thing it prevents).
     activeDays: parsed.activeDays ?? (parsed.streak ? seedRecentDays(parsed.streak) : []),
     moodLog: parsed.moodLog ?? {},
+    featureUsage: parsed.featureUsage ?? {},
   }
 }
 
@@ -526,6 +533,11 @@ export function useStore() {
     setState(prev => ({ ...prev, moodLog: { ...prev.moodLog, [date]: mood } }))
   }, [])
 
+  // Bump a private tap-count for a surface (counts only — no content).
+  const trackUse = useCallback((key: string) => {
+    setState(prev => ({ ...prev, featureUsage: { ...prev.featureUsage, [key]: (prev.featureUsage[key] ?? 0) + 1 } }))
+  }, [])
+
   const updateSettings = useCallback((updates: Partial<AppSettings>) => {
     setState(prev => ({
       ...prev,
@@ -730,6 +742,7 @@ export function useStore() {
     removeImportantDate,
     queueBirthdayPrep,
     setMood,
+    trackUse,
     completeRitual,
     undoRitual,
     updateRituals,

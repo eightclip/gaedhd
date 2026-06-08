@@ -359,6 +359,38 @@ bot.command("focus", async (ctx) => {
 });
 
 // ---------------------------------------------------------------------------
+// /usage — private readout of which new surfaces are actually getting tapped, so
+// John can prune what isn't landing. Counts only; no content.
+// ---------------------------------------------------------------------------
+const USAGE_LABELS = {
+  overwhelm: "🫧 Overwhelm reset",
+  decide: "🤔 Decide helper",
+  focus: "🤝 Focus together",
+  tiny: "⚡ 2-minute start",
+  reframe: "💬 Skip reframe shown",
+  mood: "🌙 Evening check-in",
+};
+
+bot.command("usage", async (ctx) => {
+  try {
+    const data = await fetchNow();
+    const u = data.featureUsage || {};
+    const lines = ["*What's getting used* — taps so far", ""];
+    let any = false;
+    for (const [key, label] of Object.entries(USAGE_LABELS)) {
+      const n = u[key] || 0;
+      if (n > 0) any = true;
+      lines.push(`${label}: *${n}*`);
+    }
+    if (!any) lines.push("", "_Nothing tapped yet — give it a few days, then check back._");
+    await ctx.reply(lines.join("\n"), { parse_mode: "Markdown" });
+  } catch (err) {
+    console.error("[/usage] Error:", err.message);
+    await ctx.reply("Couldn't pull usage right now.");
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Plain text messages → a real conversation. She chats like she would with a
 // person; the bot only adds to her list when she actually asks it to (via the
 // add_to_list tool). No AI key configured? Fall back to dumb capture so nothing

@@ -54,6 +54,7 @@ export async function GET(request: Request) {
     parkingLot?: ParkingLotItem[]
     streak?: number
     activeDays?: string[]
+    featureUsage?: Record<string, number>
     settings?: { calendarSources?: CalendarSource[]; wakeHour?: number; sleepHour?: number; importantDates?: ImportantDate[] }
   }
 
@@ -136,6 +137,7 @@ export async function GET(request: Request) {
     dumpCount,
     streak,
     weekCount: momentum.weekCount,
+    featureUsage: state.featureUsage ?? {},
     completedToday,
     minutesToday,
     events,
