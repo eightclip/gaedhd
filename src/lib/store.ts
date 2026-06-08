@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import type { Goal, MicroTask, ParkingLotItem, FixedBlock, ImportantDate } from './types'
 import type { Ritual } from './rituals'
 import { DEFAULT_RITUALS } from './rituals'
+import { localDateStr } from './momentum'
 import { goals as mockGoals, microTasks as mockTasks, parkingLotItems as mockParking } from './mock-data'
 
 // ─── Types ──────────────────────────────────────────────────────
@@ -66,6 +67,15 @@ export interface AppState {
   birthdayMomentYear: number
   streak: number
   tasksCompletedToday: number
+  // Local YYYY-MM-DD strings, one per day she completed anything. Feeds the
+  // forgiving momentum streak (see lib/momentum.ts) instead of a brittle counter.
+  activeDays: string[]
+}
+
+// Stamp today onto the active-days log (idempotent per day).
+function recordActiveDay(days: string[]): string[] {
+  const today = localDateStr(new Date())
+  return days.includes(today) ? days : [...days, today]
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -108,6 +118,11 @@ const INITIAL_STATE: AppState = {
   birthdayMomentYear: 0,
   streak: 5,
   tasksCompletedToday: 3,
+  // Seed the demo with the last 5 days active so momentum reads sensibly on first run.
+  activeDays: Array.from({ length: 5 }, (_, i) => {
+    const t = new Date()
+    return localDateStr(new Date(t.getFullYear(), t.getMonth(), t.getDate() - i))
+  }),
 }
 
 // ─── Hook ───────────────────────────────────────────────────────
@@ -124,6 +139,7 @@ function mergeState(parsed: Partial<AppState> | null | undefined): AppState {
     ritualLog: parsed.ritualLog ?? {},
     asyncMeetings: parsed.asyncMeetings ?? [],
     importantDateLog: parsed.importantDateLog ?? {},
+    activeDays: parsed.activeDays ?? [],
   }
 }
 
@@ -392,6 +408,7 @@ export function useStore() {
         goals: updatedGoals,
         microTasks: updatedTasks,
         tasksCompletedToday: prev.tasksCompletedToday + 1,
+        activeDays: recordActiveDay(prev.activeDays),
       }
     })
   }, [])
@@ -450,6 +467,7 @@ export function useStore() {
         microTasks: updatedTasks,
         goals: prev.goals.map(g => g.id === goalId ? { ...g, progressPct: 100 } : g),
         tasksCompletedToday: prev.tasksCompletedToday + newlyDone,
+        activeDays: newlyDone > 0 ? recordActiveDay(prev.activeDays) : prev.activeDays,
       }
     })
   }, [])
@@ -590,6 +608,7 @@ export function useStore() {
         ...prev.ritualLog,
         [ritualId]: [...(prev.ritualLog[ritualId] ?? []), new Date().toISOString()],
       },
+      activeDays: recordActiveDay(prev.activeDays),
     }))
   }, [])
 

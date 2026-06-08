@@ -374,6 +374,16 @@ bot.on("message:photo", async (ctx) => {
 // ---------------------------------------------------------------------------
 // Track last nudge per ritual id to avoid repeating within an hour
 const lastNudgeSent = new Map(); // ritualId -> Date
+// How many times each ritual has been nudged, to rotate through phrasings.
+// ADHD brains habituate to identical repeated alerts and start tuning them out,
+// so we cycle the wording instead of sending the same string every time.
+const nudgeCounts = new Map(); // ritualId -> number
+
+function pickNudgeText(ritual, count) {
+  const pool = [ritual.nudge, ...(ritual.nudgeVariants ?? [])].filter(Boolean);
+  if (pool.length === 0) return `Time for: ${ritual.title}`;
+  return pool[count % pool.length];
+}
 
 if (NUDGES_ENABLED) {
   if (!NUDGE_CHAT_ID) {
@@ -409,13 +419,13 @@ if (NUDGES_ENABLED) {
 
       if (!ritual) return; // all recently nudged
 
-      const message = ritual.nudge
-        ? `${ritual.emoji ?? ""} ${ritual.nudge}`
-        : `${ritual.emoji ?? ""} Time for: ${ritual.title}`;
+      const count = nudgeCounts.get(ritual.id) ?? 0;
+      const message = `${ritual.emoji ?? ""} ${pickNudgeText(ritual, count)}`.trim();
 
       try {
         await bot.api.sendMessage(NUDGE_CHAT_ID, message);
         lastNudgeSent.set(ritual.id, new Date());
+        nudgeCounts.set(ritual.id, count + 1);
         console.log(`[nudge] Sent nudge for ritual "${ritual.title}" to chat ${NUDGE_CHAT_ID}`);
       } catch (err) {
         console.error("[nudge] sendMessage error:", err.message);

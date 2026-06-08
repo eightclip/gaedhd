@@ -24,6 +24,7 @@ import { categoryIcon, BREAK_ICON } from '@/lib/icons'
 import { categoryColors } from '@/lib/mock-data'
 import type { CalendarEvent, TimelineItem } from '@/lib/types'
 import { useStore } from '@/lib/store'
+import { computeMomentum } from '@/lib/momentum'
 import { computeGaps, slotTasks, currentNextActions, availableActions, materializeFixedBlocks, ymd } from '@/lib/schedule'
 import { ProgressRing } from './ProgressRing'
 
@@ -155,6 +156,7 @@ export function TodayView() {
 
   const completedTasks = store.microTasks.filter(t => t.status === 'completed').length
   const totalMinutes = store.microTasks.filter(t => t.status === 'completed').reduce((sum, t) => sum + t.durationMin, 0)
+  const momentum = computeMomentum(store.activeDays, now)
   const greeting = now.getHours() < 12 ? 'morning' : now.getHours() < 17 ? 'afternoon' : 'evening'
   const noCalendars = !calLoading && calCount === 0
 
@@ -188,7 +190,7 @@ export function TodayView() {
   const header = (sizes: { day: string; num: string; month: string }) => (
     <div className="mb-10">
       <p className="font-mono text-[11px] uppercase tracking-[0.25em] text-muted mb-3">
-        Good {greeting} · {store.streak} day streak
+        Good {greeting}{momentum.streak > 0 ? ` · ${momentum.streak} day streak` : ` · ${momentum.weekCount} active days this week`}
       </p>
       <h1 className={`font-display font-bold tracking-tight leading-[0.95] ${sizes.day}`}>{format(now, 'EEEE')}</h1>
       <div className="flex items-end gap-3 mt-1">
@@ -326,8 +328,8 @@ export function TodayView() {
   const winsTiles = (
     <div className="grid grid-cols-3 gap-3 mb-10">
       <div className="rounded-[1.5rem] p-5" style={{ backgroundColor: 'var(--today-tint)' }}>
-        <p className="font-display text-4xl font-extrabold leading-none text-today-ink">{store.streak}</p>
-        <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mt-2">streak</p>
+        <p className="font-display text-4xl font-extrabold leading-none text-today-ink">{momentum.streak}</p>
+        <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mt-2">{momentum.weekCount}/7 this week</p>
       </div>
       <div className="rounded-[1.5rem] p-5 bg-success-soft">
         <p className="font-display text-4xl font-extrabold leading-none text-success">{completedTasks}</p>
