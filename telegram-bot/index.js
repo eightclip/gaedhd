@@ -257,6 +257,41 @@ bot.command("today", async (ctx) => {
 });
 
 // ---------------------------------------------------------------------------
+// /overwhelmed — for the flooded moments. Grounding first, then ONE tiny thing
+// (the shortest pending), never the whole list. Mirrors the in-app reset.
+// ---------------------------------------------------------------------------
+const OVERWHELM_OPENERS = [
+  "Hey. Breathe. You don't have to do all of it — that feeling is the ADHD, not you.",
+  "Okay, pause. In through the nose, out slow. You're allowed to do just one small thing.",
+  "Take a breath with me. We're going to shrink this down to one tiny step, that's it.",
+];
+
+bot.command("overwhelmed", async (ctx) => {
+  try {
+    const data = await fetchNow();
+    // Pick the lightest thing: shortest of upNext, else the current task.
+    const pool = data.upNext ?? [];
+    const tiny = pool.length
+      ? [...pool].sort((a, b) => (a.durationMin ?? 99) - (b.durationMin ?? 99))[0]
+      : data.task;
+    const opener = OVERWHELM_OPENERS[Math.floor(Math.random() * OVERWHELM_OPENERS.length)];
+    const lines = [opener, ""];
+    if (tiny) {
+      lines.push(`*Just this one thing:*`);
+      lines.push(`${tiny.title}${tiny.durationMin ? ` — ${tiny.durationMin} min` : ""}`);
+      lines.push("");
+      lines.push("Do that, then stop. The rest can wait. 💛");
+    } else {
+      lines.push("Nothing tiny is even waiting. So just rest — you've earned it. 💛");
+    }
+    await ctx.reply(lines.join("\n"), { parse_mode: "Markdown" });
+  } catch (err) {
+    console.error("[/overwhelmed] Error:", err.message);
+    await ctx.reply("Breathe. One thing at a time. I'm here when the connection's back.");
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Plain text messages → a real conversation. She chats like she would with a
 // person; the bot only adds to her list when she actually asks it to (via the
 // add_to_list tool). No AI key configured? Fall back to dumb capture so nothing

@@ -31,6 +31,10 @@ export interface CalendarSource {
   type: 'google' | 'ical'
 }
 
+// A gentle once-a-day emotional read. Off by default — opt-in only — to avoid
+// adding nag load (see RESEARCH.md #5).
+export type Mood = 'rough' | 'ok' | 'good'
+
 export interface AppSettings {
   anthropicApiKey: string
   userName: string
@@ -41,6 +45,7 @@ export interface AppSettings {
   userContext: string // her equipment, spaces, preferences — fed to the AI breakdown
   fixedBlocks: FixedBlock[] // her real anchors (school runs, gym) that shape the day
   importantDates: ImportantDate[] // birthdays, anniversaries to never miss
+  eveningCheckin: boolean // show the optional "how did today feel?" card in the evening
 }
 
 const CALENDAR_COLORS = ['#C85D3E', '#7B9E6B', '#9B7EC8', '#6BA3BE', '#D4845E', '#C87E9E']
@@ -70,6 +75,8 @@ export interface AppState {
   // Local YYYY-MM-DD strings, one per day she completed anything. Feeds the
   // forgiving momentum streak (see lib/momentum.ts) instead of a brittle counter.
   activeDays: string[]
+  // Optional evening mood check-in, keyed by local YYYY-MM-DD.
+  moodLog: Record<string, Mood>
 }
 
 // Stamp today onto the active-days log (idempotent per day).
@@ -86,6 +93,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   transitionBufferMin: 3,
   calendarSources: [],
   userContext: '',
+  eveningCheckin: false,
   fixedBlocks: [
     { id: 'school-drop', title: 'Take kids to school', emoji: '🏫', startHour: 8, startMin: 0, durationMin: 30, travelMin: 0, days: [1, 2, 3, 4, 5], color: '#C87E9E' },
     { id: 'school-pickup', title: 'Pick up kids', emoji: '🏫', startHour: 15, startMin: 0, durationMin: 30, travelMin: 0, days: [1, 2, 3, 4, 5], color: '#C87E9E' },
@@ -123,6 +131,7 @@ const INITIAL_STATE: AppState = {
     const t = new Date()
     return localDateStr(new Date(t.getFullYear(), t.getMonth(), t.getDate() - i))
   }),
+  moodLog: {},
 }
 
 // ─── Hook ───────────────────────────────────────────────────────
@@ -140,6 +149,7 @@ function mergeState(parsed: Partial<AppState> | null | undefined): AppState {
     asyncMeetings: parsed.asyncMeetings ?? [],
     importantDateLog: parsed.importantDateLog ?? {},
     activeDays: parsed.activeDays ?? [],
+    moodLog: parsed.moodLog ?? {},
   }
 }
 
@@ -493,6 +503,10 @@ export function useStore() {
     })
   }, [])
 
+  const setMood = useCallback((date: string, mood: Mood) => {
+    setState(prev => ({ ...prev, moodLog: { ...prev.moodLog, [date]: mood } }))
+  }, [])
+
   const updateSettings = useCallback((updates: Partial<AppSettings>) => {
     setState(prev => ({
       ...prev,
@@ -696,6 +710,7 @@ export function useStore() {
     updateImportantDate,
     removeImportantDate,
     queueBirthdayPrep,
+    setMood,
     completeRitual,
     undoRitual,
     updateRituals,

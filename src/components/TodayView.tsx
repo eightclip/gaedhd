@@ -17,6 +17,8 @@ import { BreakCard } from './BreakCard'
 import { GymPicker } from './GymPicker'
 import { CaptureSheet } from './CaptureSheet'
 import { BirthdayTakeover } from './BirthdayTakeover'
+import { OverwhelmReset } from './OverwhelmReset'
+import { MoodCheckin } from './MoodCheckin'
 import { RECIPIENT_NAME } from '@/lib/letter'
 import { Illo } from './Illo'
 import { ILLO, DONE_ILLOS, pickDaily } from '@/lib/illustrations'
@@ -24,7 +26,7 @@ import { categoryIcon, BREAK_ICON } from '@/lib/icons'
 import { categoryColors } from '@/lib/mock-data'
 import type { CalendarEvent, TimelineItem } from '@/lib/types'
 import { useStore } from '@/lib/store'
-import { computeMomentum } from '@/lib/momentum'
+import { computeMomentum, localDateStr } from '@/lib/momentum'
 import { computeGaps, slotTasks, currentNextActions, availableActions, materializeFixedBlocks, ymd } from '@/lib/schedule'
 import { ProgressRing } from './ProgressRing'
 
@@ -56,6 +58,7 @@ export function TodayView() {
   const [breakMode, setBreakMode] = useState<{ label: string; mins: number; promptWater: boolean } | null>(null)
   const [inbox, setInbox] = useState<{ id: string; raw_text: string | null; source: string }[]>([])
   const [birthdayDismissed, setBirthdayDismissed] = useState(false)
+  const [overwhelmed, setOverwhelmed] = useState(false)
   // Preview the takeover any day via /?birthday-preview (won't burn the real
   // once-a-year moment). Safe to read window lazily: the takeover is gated on
   // store.loaded, which is false at hydration, so there's no markup mismatch.
@@ -127,6 +130,13 @@ export function TodayView() {
   const nextActions = currentNextActions(store.goals, store.microTasks)
   const available = availableActions(store.goals, store.microTasks)
   const topTasks = available.slice(0, 5)
+  // The single lightest thing she could do — shortest, least cognitively heavy —
+  // for the overwhelm reset, which collapses the day down to just one tiny step.
+  const LOAD_RANK = { mindless: 0, light: 1, deep: 2 } as const
+  const lightestTask = [...available].sort((a, b) =>
+    a.microTask.durationMin - b.microTask.durationMin ||
+    LOAD_RANK[a.microTask.cognitiveLoad] - LOAD_RANK[b.microTask.cognitiveLoad]
+  )[0] ?? null
 
   // Her real anchors (school runs, gym) become hard blocks the day schedules around.
   const fixedEvents = materializeFixedBlocks(store.settings.fixedBlocks, now)
@@ -200,6 +210,12 @@ export function TodayView() {
           <p className="font-mono text-xs text-muted mt-1.5">{format(now, 'h:mm a')}</p>
         </div>
       </div>
+      <button
+        onClick={() => setOverwhelmed(true)}
+        className="mt-5 inline-flex items-center gap-1.5 rounded-full bg-muted-light px-3.5 py-1.5 text-xs font-semibold text-muted hover:text-foreground hover:bg-muted-light/70 transition-colors"
+      >
+        🫧 Feeling overwhelmed?
+      </button>
     </div>
   )
 
@@ -233,6 +249,13 @@ export function TodayView() {
   )
 
   const datesCard = <ImportantDates dates={store.settings.importantDates} now={now} />
+
+  // Optional evening mood check-in (opt-in). Shows in the last ~2h before sleep.
+  const todayKey = localDateStr(now)
+  const showCheckin = store.settings.eveningCheckin && now.getHours() >= Math.floor(store.settings.sleepHour) - 2
+  const moodCheckin = showCheckin
+    ? <MoodCheckin todayMood={store.moodLog[todayKey]} onPick={(m) => store.setMood(todayKey, m)} />
+    : null
 
   const water = (
     <WaterTracker
@@ -411,6 +434,7 @@ export function TodayView() {
         {flowSection}
       </div>
       <div className="space-y-10 pt-2">
+        {moodCheckin}
         {water}
         {winsTiles}
         {goalsRail}
@@ -427,6 +451,7 @@ export function TodayView() {
       </div>
       {header({ day: 'text-6xl', num: 'text-[7rem]', month: 'text-xl' })}
       {datesCard}
+      {moodCheckin}
       <div className="mb-10">{water}</div>
       {meetingCopilot}
       {justDoThis}
@@ -453,6 +478,13 @@ export function TodayView() {
     <>
       {showBirthday && (
         <BirthdayTakeover name={store.settings.userName || RECIPIENT_NAME} onDismiss={dismissBirthday} />
+      )}
+      {overwhelmed && (
+        <OverwhelmReset
+          task={lightestTask}
+          onCompleteTask={store.completeTask}
+          onClose={() => setOverwhelmed(false)}
+        />
       )}
       {desktop}
       {mobile}

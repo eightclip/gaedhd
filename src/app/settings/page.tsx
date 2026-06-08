@@ -65,6 +65,18 @@ export default function SettingsPage() {
           <h2 className="font-bold text-sm">Notifications</h2>
         </div>
         <PushToggle />
+        <label className="mt-3 flex items-center justify-between gap-3 rounded-2xl bg-card border border-card-border p-3.5 cursor-pointer">
+          <span className="text-sm">
+            <span className="font-semibold">Evening check-in</span>
+            <span className="block text-xs text-muted mt-0.5">A gentle &ldquo;how did today feel?&rdquo; in the evening. Off by default.</span>
+          </span>
+          <input
+            type="checkbox"
+            checked={store.settings.eveningCheckin}
+            onChange={(e) => store.updateSettings({ eveningCheckin: e.target.checked })}
+            className="accent-accent w-5 h-5 shrink-0"
+          />
+        </label>
       </section>
 
       {/* Presence */}

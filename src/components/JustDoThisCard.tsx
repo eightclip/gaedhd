@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Check, SkipForward, Clock, Target, Pause } from 'lucide-react'
+import { Check, SkipForward, Clock, Target, Pause, Zap } from 'lucide-react'
 import type { TaskWithGoal } from '@/lib/types'
 import { categoryColors } from '@/lib/mock-data'
 import { ConfettiPop } from './ConfettiPop'
@@ -23,6 +23,14 @@ export function JustDoThisCard({ tasks, onComplete, onSkip, onPause }: JustDoThi
   const [timeLeft, setTimeLeft] = useState(0)
   const [showConfetti, setShowConfetti] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
+  // Consecutive skips without a completion. On the 2nd in a row we intercept with
+  // a gentle reframe + a tiny-start offer instead of just letting her bounce off
+  // the task — targets the ADHD avoidance loop / "I can't do this" thought.
+  const [skipRun, setSkipRun] = useState(0)
+  const [reframe, setReframe] = useState(false)
+  // Tiny-first-step: shrink the entry to 2 minutes. Lowering activation energy to
+  // start matters more than shrinking the whole task.
+  const [tinyMode, setTinyMode] = useState(false)
 
   // Paused tasks step aside for now but stay pending — they come back later.
   const activeTasks = tasks.filter(t => !completedIds.has(t.id) && !pausedIds.has(t.id))
@@ -31,15 +39,33 @@ export function JustDoThisCard({ tasks, onComplete, onSkip, onPause }: JustDoThi
 
   useEffect(() => {
     if (currentTask) {
+      setTinyMode(false)
+      setReframe(false)
       setTimeLeft(currentTask.microTask.durationMin * 60)
     }
   }, [currentTask?.id])
 
+  // Shrink the entry to a 2-minute start. "You can stop after" is the whole point.
+  const handleStartTiny = useCallback(() => {
+    setTinyMode(true)
+    setReframe(false)
+    setSkipRun(0)
+    setTimeLeft(120)
+  }, [])
+
   const handleSkip = useCallback(() => {
     if (!currentTask) return
+    const nextRun = skipRun + 1
+    // Second skip in a row → pause and offer the reframe rather than skipping.
+    if (nextRun >= 2 && !reframe) {
+      setReframe(true)
+      return
+    }
+    setSkipRun(nextRun)
+    setReframe(false)
     setCompletedIds(prev => new Set(prev).add(currentTask.id))
     onSkip?.(currentTask.microTask.id)
-  }, [currentTask, onSkip])
+  }, [currentTask, onSkip, skipRun, reframe])
 
   // Pause: set this one aside for later. It stays pending (not done, not skipped)
   // so it comes back around — for when a quick task is running long.
@@ -60,6 +86,8 @@ export function JustDoThisCard({ tasks, onComplete, onSkip, onPause }: JustDoThi
 
   const handleComplete = useCallback(() => {
     if (!currentTask) return
+    setSkipRun(0)
+    setReframe(false)
     setCompletedIds(prev => new Set(prev).add(currentTask.id))
     onComplete?.(currentTask.microTask.id)
     setShowConfetti(true)
@@ -129,8 +157,8 @@ export function JustDoThisCard({ tasks, onComplete, onSkip, onPause }: JustDoThi
               <span className="flex items-center gap-1.5 text-sm font-semibold opacity-80 uppercase tracking-wider">
                 <GoalIcon size={14} /> {currentTask.goal.title}
               </span>
-              <span className="text-xs opacity-60 bg-white/10 px-2.5 py-1 rounded-full">
-                {currentTask.microTask.phase}
+              <span className="text-xs opacity-70 bg-white/10 px-2.5 py-1 rounded-full inline-flex items-center gap-1">
+                {tinyMode ? <><Zap size={11} /> just 2 min</> : currentTask.microTask.phase}
               </span>
             </div>
 
@@ -172,7 +200,45 @@ export function JustDoThisCard({ tasks, onComplete, onSkip, onPause }: JustDoThi
               </div>
             </div>
 
+            {!tinyMode && (
+              <button
+                onClick={handleStartTiny}
+                className="mt-4 self-start inline-flex items-center gap-1.5 text-xs font-semibold text-white/70 hover:text-white transition-colors"
+              >
+                <Zap size={13} /> or just start — 2 minutes
+              </button>
+            )}
           </div>
+
+          {/* Reframe: she's bounced off this twice. Soften it, offer a tiny start. */}
+          <AnimatePresence>
+            {reframe && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 z-20 flex flex-col items-center justify-center text-center p-6"
+                style={{ backgroundColor: color }}
+              >
+                <p className="font-display text-xl font-bold text-white">This one keeps getting pushed.</p>
+                <p className="text-white/80 text-sm mt-1 max-w-xs">That&apos;s the ADHD, not you. Want to try just two minutes? You can stop after.</p>
+                <div className="flex items-center gap-2.5 mt-5">
+                  <button
+                    onClick={handleStartTiny}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-white text-foreground px-5 py-2.5 text-sm font-bold hover:opacity-90 active:scale-95 transition-all"
+                  >
+                    <Zap size={15} /> Try 2 minutes
+                  </button>
+                  <button
+                    onClick={handleSkip}
+                    className="rounded-full bg-white/15 text-white px-5 py-2.5 text-sm font-semibold hover:bg-white/25 transition-colors"
+                  >
+                    Skip it
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
       </AnimatePresence>
 
