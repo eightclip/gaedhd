@@ -16,13 +16,15 @@ interface RhythmStripProps {
   onComplete: (id: string) => void
   onUndo: (id: string) => void
   hidePrivate?: boolean
+  excludeId?: string // a ritual currently shown in the focus card — don't double it here
 }
 
 // Rhythm as a grid of solid color-blocked tiles, each ritual in its own tint.
 // What's done shrinks to quiet pills underneath. Editorial, not a list. See DESIGN.md.
-export function RhythmStrip({ rituals, ritualLog, now, onComplete, onUndo, hidePrivate }: RhythmStripProps) {
+export function RhythmStrip({ rituals, ritualLog, now, onComplete, onUndo, hidePrivate, excludeId }: RhythmStripProps) {
   // Water has its own dedicated tracker, so keep it out of the generic grid.
-  const visible = (hidePrivate ? rituals.filter(r => !r.private) : rituals).filter(r => r.id !== 'water')
+  const visible = (hidePrivate ? rituals.filter(r => !r.private) : rituals)
+    .filter(r => r.id !== 'water' && r.id !== excludeId)
   const ranked = rankRituals(visible, ritualLog, now)
   const due = ranked.filter(s => s.due)
   const done = ranked.filter(s => !s.due && s.completedToday > 0)

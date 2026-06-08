@@ -9,6 +9,8 @@ import { JustDoThisCard } from './JustDoThisCard'
 import { TimelineEvent } from './TimelineEvent'
 import { TimelineGap } from './TimelineGap'
 import { RhythmStrip } from './RhythmStrip'
+import { RitualFocusCard } from './RitualFocusCard'
+import { rankRituals, isAnchoredCadence } from '@/lib/rituals'
 import { PresenceBar } from './PresenceBar'
 import { MeetingCopilot } from './MeetingCopilot'
 import { WaterTracker } from './WaterTracker'
@@ -65,6 +67,9 @@ export function TodayView() {
   const [focusing, setFocusing] = useState(false)
   // When she uses the decide helper to commit to one thing, it jumps to the front.
   const [focusId, setFocusId] = useState<string | null>(null)
+  // Anchored rituals she's tapped "Later" on — stepped past in the focus card for
+  // now (session-only); they stay visible in the rhythm strip, no guilt.
+  const [laterRituals, setLaterRituals] = useState<Set<string>>(new Set())
   // Preview the takeover any day via /?birthday-preview (won't burn the real
   // once-a-year moment). Safe to read window lazily: the takeover is gated on
   // store.loaded, which is false at hydration, so there's no markup mismatch.
@@ -154,6 +159,14 @@ export function TodayView() {
     LOAD_RANK[a.microTask.cognitiveLoad] - LOAD_RANK[b.microTask.cognitiveLoad]
   )[0] ?? null
 
+  // The single most-pressing due, time-anchored ritual (meds, wrap-up, kid time…)
+  // gets pulled into the focus card so the rhythm of her day lands in the same
+  // one-thing-at-a-time flow as her tasks. High-frequency ambient ones (water,
+  // move, protein) stay in the rhythm strip.
+  const focusRitual = rankRituals(store.rituals, store.ritualLog, now)
+    .find(s => s.due && isAnchoredCadence(s.ritual.cadence) && !laterRituals.has(s.ritual.id))
+    ?.ritual ?? null
+
   // Her real anchors (school runs, gym) become hard blocks the day schedules around.
   const fixedEvents = materializeFixedBlocks(store.settings.fixedBlocks, now)
   const allEvents = [...events, ...fixedEvents]
@@ -241,6 +254,7 @@ export function TodayView() {
       rituals={store.rituals}
       ritualLog={store.ritualLog}
       now={now}
+      excludeId={focusRitual?.id}
       onComplete={store.completeRitual}
       onUndo={store.undoRitual}
     />
@@ -309,7 +323,13 @@ export function TodayView() {
         />
       ) : (
         <>
-          {topTasks.length > 0 ? (
+          {focusRitual ? (
+            <RitualFocusCard
+              ritual={focusRitual}
+              onComplete={() => { store.trackUse('ritual_focus'); store.completeRitual(focusRitual.id) }}
+              onLater={() => setLaterRituals(prev => new Set(prev).add(focusRitual.id))}
+            />
+          ) : topTasks.length > 0 ? (
             <JustDoThisCard tasks={topTasks} onComplete={store.completeTask} onSkip={store.skipTask} onEvent={store.trackUse} />
           ) : store.goals.length > 0 ? (
             <div className="bg-success-soft rounded-[2rem] p-10 text-center">
