@@ -145,7 +145,7 @@ export default function KioskPage() {
                 <span className="font-mono text-[0.9vw] text-today-ink shrink-0 mt-[0.2vw]">{t.durationMin}m</span>
                 <span className="font-display text-[1.35vw] font-semibold leading-tight truncate">{t.title}</span>
               </div>
-            )) : <p className="font-display text-[1.5vw] text-muted">All clear ✨</p>}
+            )) : <p className="font-display text-[1.5vw] text-muted">Nothing queued</p>}
           </div>
         </div>
 
@@ -246,7 +246,7 @@ export default function KioskPage() {
         <div className="col-span-4 rounded-[1.5vw] bg-success-soft p-[1.4vw] flex items-center justify-around min-h-0 overflow-hidden">
           <div className="text-center">
             <p className="font-display text-[3vw] font-extrabold leading-none text-success">{data?.streak ?? 0}</p>
-            <p className="font-mono text-[0.85vw] uppercase tracking-widest text-muted mt-[0.4vw]">{data?.weekCount != null ? `${data.weekCount}/7 wk` : 'streak'}</p>
+            <p className="font-mono text-[0.85vw] uppercase tracking-widest text-muted mt-[0.4vw]">day streak</p>
           </div>
           <div className="text-center">
             <p className="font-display text-[3vw] font-extrabold leading-none">{data?.completedToday ?? 0}</p>
