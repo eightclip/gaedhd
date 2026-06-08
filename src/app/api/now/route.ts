@@ -6,21 +6,21 @@ import { rankRituals, DEFAULT_RITUALS } from '@/lib/rituals'
 import { currentNextActions, availableActions } from '@/lib/schedule'
 import { upcomingDates } from '@/lib/dates'
 import { fetchEventsForSources } from '@/lib/ical'
+import { nowTokenValid } from '@/lib/now-auth'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 // Token-protected, read-only "what matters right now" endpoint. Powers the office TV
-// kiosk and any ambient device. Example: GET /api/now?token=XXX
+// kiosk and any ambient device. Prefer an `Authorization: Bearer <token>` header;
+// the legacy ?token= query param still works for clients that can't set headers.
 export async function GET(request: Request) {
   if (!supabaseConfigured()) {
     return Response.json({ error: 'sync_not_configured' }, { status: 503 })
   }
 
   const params = new URL(request.url).searchParams
-  const token = process.env.GAEDHD_NOW_TOKEN
-  const provided = params.get('token')
-  if (!token || provided !== token) {
+  if (!nowTokenValid(request)) {
     return Response.json({ error: 'unauthorized' }, { status: 401 })
   }
 

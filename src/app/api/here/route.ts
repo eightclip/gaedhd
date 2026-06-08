@@ -1,24 +1,18 @@
 import { auth } from '@/auth'
 import { getSupabaseAdmin, supabaseConfigured, PRESENCE_TABLE } from '@/lib/supabase-server'
+import { nowTokenEmail } from '@/lib/now-auth'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 // Sets where she is right now. Two callers:
-//  - Devices (Home Assistant, NFC Shortcuts): GET /api/here?room=studio&token=XXX
+//  - Devices (Home Assistant, NFC Shortcuts): Authorization: Bearer <token> (or ?token=)
 //  - The in-app room switcher: POST /api/here { room } with her session cookie
 // One source of truth, fed by whatever exists. See AMBIENT-SETUP.md.
 
 async function resolveEmail(request: Request): Promise<string | null> {
-  const token = process.env.GAEDHD_NOW_TOKEN
-  const provided = new URL(request.url).searchParams.get('token')
-  if (token && provided === token) {
-    return (
-      process.env.GAEDHD_NOW_EMAIL ||
-      (process.env.ALLOWED_EMAILS || '').split(',')[0] ||
-      ''
-    ).trim().toLowerCase() || null
-  }
+  const tokenEmail = nowTokenEmail(request)
+  if (tokenEmail) return tokenEmail
   const session = await auth()
   return session?.user?.email?.toLowerCase() ?? null
 }

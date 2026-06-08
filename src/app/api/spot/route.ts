@@ -1,5 +1,6 @@
 import { auth } from '@/auth'
 import { getSupabaseAdmin, supabaseConfigured, SPOT_TASKS_TABLE } from '@/lib/supabase-server'
+import { nowTokenEmail } from '@/lib/now-auth'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -10,19 +11,6 @@ export const dynamic = 'force-dynamic'
 //  - GET    (session) ?room=  -> her open spot tasks (optionally just one room)
 //  - DELETE (session) ?id=    -> mark done
 
-function tokenEmail(request: Request): string | null {
-  const token = process.env.GAEDHD_NOW_TOKEN
-  const provided = new URL(request.url).searchParams.get('token')
-  if (token && provided === token) {
-    return (
-      process.env.GAEDHD_NOW_EMAIL ||
-      (process.env.ALLOWED_EMAILS || '').split(',')[0] ||
-      ''
-    ).trim().toLowerCase() || null
-  }
-  return null
-}
-
 export async function POST(request: Request) {
   if (!supabaseConfigured()) return Response.json({ error: 'sync_not_configured' }, { status: 503 })
 
@@ -31,7 +19,7 @@ export async function POST(request: Request) {
   const params = new URL(request.url).searchParams
 
   // Bot/device token, else the logged-in user.
-  let email = tokenEmail(request)
+  let email = nowTokenEmail(request)
   if (!email) {
     const session = await auth()
     email = session?.user?.email?.toLowerCase() ?? null

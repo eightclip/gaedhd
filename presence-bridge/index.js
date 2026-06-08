@@ -131,9 +131,15 @@ function nearestRoom() {
 }
 
 async function enter(room) {
-  const url = `${GAEDHD_BASE_URL}/api/enter?room=${encodeURIComponent(room)}&token=${encodeURIComponent(GAEDHD_NOW_TOKEN)}`;
+  // Token rides in an Authorization header, not the URL, so it never lands in
+  // the app's access logs. Room stays in the query string (it's not a secret).
+  const url = `${GAEDHD_BASE_URL}/api/enter?room=${encodeURIComponent(room)}`;
   try {
-    const res = await fetch(url, { method: "POST", signal: AbortSignal.timeout(10_000) });
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${GAEDHD_NOW_TOKEN}` },
+      signal: AbortSignal.timeout(10_000),
+    });
     const data = await res.json().catch(() => ({}));
     const tag = data.nudged ? "(nudged)" : data.reason ? `(${data.reason})` : "";
     console.log(`[enter] ${room} → ${res.status} ${tag}`.trim());
