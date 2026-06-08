@@ -4,6 +4,7 @@ import type { CalendarSource } from '@/lib/store'
 import type { Ritual } from '@/lib/rituals'
 import { rankRituals, DEFAULT_RITUALS } from '@/lib/rituals'
 import { computeMomentum } from '@/lib/momentum'
+import { localDateAnchor } from '@/lib/clock'
 import { currentNextActions, availableActions } from '@/lib/schedule'
 import { upcomingDates } from '@/lib/dates'
 import { fetchEventsForSources } from '@/lib/ical'
@@ -108,7 +109,9 @@ export async function GET(request: Request) {
   const dumpCount = (state.parkingLot ?? []).length
 
   // Forgiving momentum streak (falls back to legacy `streak` for old state blobs).
-  const momentum = computeMomentum(state.activeDays ?? [], now)
+  // Anchor to HER local date, not the server's UTC date, so the kiosk doesn't
+  // drift a day every evening (same class of bug as the quiet-hours TZ fix).
+  const momentum = computeMomentum(state.activeDays ?? [], localDateAnchor())
   const streak = state.activeDays?.length ? momentum.streak : (state.streak ?? 0)
 
   // Today's meetings (client passes its local day window to avoid timezone drift).

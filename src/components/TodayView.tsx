@@ -143,6 +143,9 @@ export function TodayView() {
     return [available[idx], ...available.slice(0, idx), ...available.slice(idx + 1)]
   })()
   const topTasks = orderedAvailable.slice(0, 5)
+  // Drop a stale focus pick once that task is done/gone, so it can't linger.
+  const focusStillValid = !focusId || available.some(t => t.id === focusId)
+  useEffect(() => { if (!focusStillValid) setFocusId(null) }, [focusStillValid])
   // The single lightest thing she could do — shortest, least cognitively heavy —
   // for the overwhelm reset, which collapses the day down to just one tiny step.
   const LOAD_RANK = { mindless: 0, light: 1, deep: 2 } as const
@@ -224,7 +227,7 @@ export function TodayView() {
         </div>
       </div>
       <button
-        onClick={() => setOverwhelmed(true)}
+        onClick={() => { setDeciding(false); setFocusing(false); setOverwhelmed(true) }}
         className="mt-5 inline-flex items-center gap-1.5 rounded-full bg-muted-light px-3.5 py-1.5 text-xs font-semibold text-muted hover:text-foreground hover:bg-muted-light/70 transition-colors"
       >
         🫧 Feeling overwhelmed?
@@ -264,8 +267,10 @@ export function TodayView() {
   const datesCard = <ImportantDates dates={store.settings.importantDates} now={now} />
 
   // Optional evening mood check-in (opt-in). Shows in the last ~2h before sleep.
+  // Guard the window so a post-midnight sleepHour doesn't make it negative (always-on).
   const todayKey = localDateStr(now)
-  const showCheckin = store.settings.eveningCheckin && now.getHours() >= Math.floor(store.settings.sleepHour) - 2
+  const eveningStartHour = Math.floor(store.settings.sleepHour) - 2
+  const showCheckin = store.settings.eveningCheckin && eveningStartHour >= 0 && now.getHours() >= eveningStartHour
   const moodCheckin = showCheckin
     ? <MoodCheckin todayMood={store.moodLog[todayKey]} onPick={(m) => store.setMood(todayKey, m)} />
     : null
@@ -285,7 +290,7 @@ export function TodayView() {
         <Head lead="Just do" accent="this" />
         {!breakMode && nextActions.length >= 2 && (
           <button
-            onClick={() => setDeciding(true)}
+            onClick={() => { setOverwhelmed(false); setFocusing(false); setDeciding(true) }}
             className="inline-flex items-center gap-1.5 rounded-full bg-muted-light px-3 py-1.5 text-xs font-semibold text-muted hover:text-foreground transition-colors"
           >
             🤔 Stuck deciding?
@@ -337,7 +342,7 @@ export function TodayView() {
 
           {/* Body doubling: start a co-working focus block, optionally with John */}
           <button
-            onClick={() => setFocusing(true)}
+            onClick={() => { setOverwhelmed(false); setDeciding(false); setFocusing(true) }}
             className="w-full mt-3 rounded-2xl bg-today-tint py-3.5 text-sm font-bold text-today-ink hover:opacity-90 active:scale-[0.99] transition-all flex items-center justify-center gap-2"
           >
             🤝 Focus together
@@ -510,21 +515,21 @@ export function TodayView() {
       {showBirthday && (
         <BirthdayTakeover name={store.settings.userName || RECIPIENT_NAME} onDismiss={dismissBirthday} />
       )}
-      {overwhelmed && (
+      {overwhelmed && !showBirthday && (
         <OverwhelmReset
           task={lightestTask}
           onCompleteTask={store.completeTask}
           onClose={() => setOverwhelmed(false)}
         />
       )}
-      {deciding && (
+      {deciding && !showBirthday && (
         <DecideHelper
           candidates={nextActions}
           onPick={(id) => { setFocusId(id); setDeciding(false) }}
           onClose={() => setDeciding(false)}
         />
       )}
-      {focusing && <FocusSession onClose={() => setFocusing(false)} />}
+      {focusing && !showBirthday && <FocusSession onClose={() => setFocusing(false)} />}
       {desktop}
       {mobile}
       {fab}

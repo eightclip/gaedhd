@@ -41,6 +41,7 @@ export function JustDoThisCard({ tasks, onComplete, onSkip, onPause }: JustDoThi
     if (currentTask) {
       setTinyMode(false)
       setReframe(false)
+      setSkipRun(0) // consecutive skips are per-task; don't let them carry over
       setTimeLeft(currentTask.microTask.durationMin * 60)
     }
   }, [currentTask?.id])

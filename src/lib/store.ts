@@ -90,6 +90,17 @@ function recordActiveDay(days: string[]): string[] {
   return days.includes(today) ? days : [...days, today]
 }
 
+// The last n calendar days (today first), as local YYYY-MM-DD strings. Used to
+// back-fill activeDays for returning users whose blob predates it, so their
+// existing streak carries over instead of crashing to a shame-inducing 0.
+function seedRecentDays(n: number): string[] {
+  const count = Math.min(Math.max(Math.floor(n), 0), 60)
+  const t = new Date()
+  return Array.from({ length: count }, (_, i) =>
+    localDateStr(new Date(t.getFullYear(), t.getMonth(), t.getDate() - i))
+  )
+}
+
 const DEFAULT_SETTINGS: AppSettings = {
   anthropicApiKey: '',
   userName: '',
@@ -154,7 +165,9 @@ function mergeState(parsed: Partial<AppState> | null | undefined): AppState {
     ritualLog: parsed.ritualLog ?? {},
     asyncMeetings: parsed.asyncMeetings ?? [],
     importantDateLog: parsed.importantDateLog ?? {},
-    activeDays: parsed.activeDays ?? [],
+    // Returning users predating activeDays: carry their old streak forward so the
+    // forgiving counter doesn't open at a punishing 0 (the very thing it prevents).
+    activeDays: parsed.activeDays ?? (parsed.streak ? seedRecentDays(parsed.streak) : []),
     moodLog: parsed.moodLog ?? {},
   }
 }
