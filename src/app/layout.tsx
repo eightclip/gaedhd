@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Nunito, Fraunces } from "next/font/google";
-import { BottomNav } from "@/components/BottomNav";
+import { MobileNav } from "@/components/MobileNav";
 import { SideNav } from "@/components/SideNav";
 import { ColorOfDay } from "@/components/ColorOfDay";
 import "./globals.css";
@@ -75,7 +75,7 @@ export default function RootLayout({
             {children}
           </main>
         </div>
-        <BottomNav />
+        <MobileNav />
       </body>
     </html>
   );
