@@ -61,6 +61,14 @@ export function pickNudge(ritual: Pick<Ritual, 'nudge' | 'nudgeVariants'>, count
   return pool[count % pool.length]
 }
 
+// "Anchored" rituals are once-per-period moments (morning meds, close the laptop,
+// kid time, reach out) — the kind worth pulling into the single-focus "do this
+// now" card when they're due. The high-frequency ambient ones (water, protein,
+// move) stay in the at-a-glance rhythm strip instead of hijacking the focus card.
+export function isAnchoredCadence(c: RitualCadence): boolean {
+  return c.kind === 'dailyAt' || c.kind === 'daily' || c.kind === 'everyDays'
+}
+
 function startOfToday(now: Date): Date {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate())
 }
