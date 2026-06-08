@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
-import { Plus, Settings } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { JustDoThisCard } from './JustDoThisCard'
@@ -186,15 +186,7 @@ export function TodayView() {
 
   // ── Header (the date as the art) ──
   const header = (sizes: { day: string; num: string; month: string }) => (
-    <div className="mb-10 relative">
-      {/* Mobile-only Settings gear. Desktop reaches Settings via SideNav. */}
-      <Link
-        href="/settings"
-        aria-label="Settings"
-        className="md:hidden absolute top-0 right-0 p-2 -m-1 rounded-full text-muted hover:text-foreground hover:bg-muted-light transition-colors"
-      >
-        <Settings size={22} />
-      </Link>
+    <div className="mb-10">
       <p className="font-mono text-[11px] uppercase tracking-[0.25em] text-muted mb-3">
         Good {greeting} · {store.streak} day streak
       </p>
