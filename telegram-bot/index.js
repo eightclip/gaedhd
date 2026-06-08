@@ -527,7 +527,7 @@ You can add things to her to-do list, but ONLY when she actually asks you to —
 
 When she does ask, call add_to_list with the cleaned-up item(s), then confirm warmly in one short line.
 
-IMPORTANT — location tasks: if she mentions WHERE a task happens (a room or place: the yard, kitchen, living room, bedroom, or office), call add_spot_task instead of add_to_list. That ties it to the room so she gets a gentle reminder when she's actually standing there. Examples: "water the plants in the yard", "move the laundry over in the living room", "wipe the counter in the kitchen", "grab my charger from the bedroom". Pick the room from: office, kitchen, bedroom, living_room, yard. If no clear room is mentioned, use add_to_list as usual.
+IMPORTANT — location tasks: when she ties task(s) to WHERE they happen (a room or place), call add_spot_task instead of add_to_list, so each one resurfaces with a gentle nudge when she's actually standing there. This covers a single task ("water the plants in the yard") AND a batch for one room ("while I'm in the kitchen: load the dishwasher, empty it, do the dishes"). Pull out each distinct task as its own clean imperative item, and pass them together in one add_spot_task call with that room. If she names tasks for different rooms in one message, make a separate add_spot_task call per room. Rooms: office, kitchen, bedroom, living_room, yard, studio. If no room is mentioned, use add_to_list as usual.
 
 Keep replies short, like a text message. No long paragraphs, no bullet lists unless she asks for one.`;
 
@@ -552,25 +552,26 @@ const CHAT_TOOLS = [
   {
     name: "add_spot_task",
     description:
-      "Add a task tied to a specific room/place, so she gets a gentle reminder when she's physically there. Use this (instead of add_to_list) whenever she names WHERE something needs to happen — e.g. 'water the plants in the yard', 'move the laundry in the living room', 'wipe the kitchen counter'.",
+      "Add one or more tasks tied to a specific room/place, so each resurfaces with a gentle reminder when she's physically there. Use this (instead of add_to_list) whenever she names WHERE things happen — a single task ('water the plants in the yard') or a batch for one room ('while I'm in the kitchen: load the dishwasher, empty it, do the dishes'). For tasks in different rooms, call this once per room.",
     input_schema: {
       type: "object",
       properties: {
-        title: {
-          type: "string",
-          description: "The task as a short imperative phrase, e.g. 'Water the plants'.",
+        items: {
+          type: "array",
+          items: { type: "string" },
+          description: "The task(s) for this room, each a short imperative phrase, e.g. 'Load the dishwasher'.",
         },
         room: {
           type: "string",
-          enum: ["office", "kitchen", "bedroom", "living_room", "yard"],
-          description: "Which room/place the task belongs to.",
+          enum: ["office", "kitchen", "bedroom", "living_room", "yard", "studio"],
+          description: "Which room/place these tasks belong to.",
         },
         emoji: {
           type: "string",
-          description: "Optional single emoji that fits the task, e.g. '🪴'.",
+          description: "Optional single emoji that fits the task(s), e.g. '🍽️'.",
         },
       },
-      required: ["title", "room"],
+      required: ["items", "room"],
     },
   },
 ];
@@ -634,33 +635,37 @@ async function converse(messages) {
             is_error: ok.length === 0,
           });
         } else if (block.name === "add_spot_task") {
-          const title = String(block.input?.title ?? "").trim();
           const room = String(block.input?.room ?? "").trim().toLowerCase();
+          // Prefer items[] (a batch for one room); fall back to a single title.
+          let titles = Array.isArray(block.input?.items) ? block.input.items : [];
+          if (!titles.length && block.input?.title) titles = [block.input.title];
+          titles = titles.map((t) => String(t).trim()).filter(Boolean);
           const emoji = block.input?.emoji ? String(block.input.emoji) : undefined;
-          if (title && room) {
-            try {
-              await postSpot(title, room, emoji);
-              const where = room.replace(/_/g, " ");
-              added.push(`${title} (${where})`);
-              results.push({
-                type: "tool_result",
-                tool_use_id: block.id,
-                content: `Added "${title}" for the ${where} — she'll get a nudge when she's there.`,
-              });
-            } catch (err) {
-              console.error("[chat] postSpot error:", err.message);
-              results.push({
-                type: "tool_result",
-                tool_use_id: block.id,
-                content: "Could not add that right now.",
-                is_error: true,
-              });
+          const where = room.replace(/_/g, " ");
+          if (titles.length && room) {
+            const ok = [];
+            for (const t of titles) {
+              try {
+                await postSpot(t, room, emoji);
+                ok.push(t);
+                added.push(`${t} (${where})`);
+              } catch (err) {
+                console.error("[chat] postSpot error:", err.message);
+              }
             }
+            results.push({
+              type: "tool_result",
+              tool_use_id: block.id,
+              content: ok.length
+                ? `Added ${ok.length} for the ${where}: ${ok.join(", ")} — she'll get a nudge when she's there.`
+                : "Could not add those right now.",
+              is_error: ok.length === 0,
+            });
           } else {
             results.push({
               type: "tool_result",
               tool_use_id: block.id,
-              content: "Need both a task and a room.",
+              content: "Need at least one task and a room.",
               is_error: true,
             });
           }
