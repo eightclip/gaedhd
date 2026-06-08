@@ -19,6 +19,8 @@ export default auth((req) => {
     req.nextUrl.pathname.startsWith('/api/spot') ||
     // The ESPresense presence bridge reports in-house room entry with a token.
     req.nextUrl.pathname.startsWith('/api/enter') ||
+    // Daily presence reset: hit by the Vercel cron (CRON_SECRET) and the device token.
+    req.nextUrl.pathname.startsWith('/api/presence') ||
     // The push service worker must stay fetchable for registration + update checks.
     req.nextUrl.pathname === '/sw.js' ||
     // The office TV kiosk is token-gated in the page/endpoint, not by session.
