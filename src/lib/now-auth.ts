@@ -16,6 +16,14 @@ function configuredEmail(): string | null {
   ).trim().toLowerCase() || null
 }
 
+// The single shared GaeDHD account that every signed-in allowlisted user reads and
+// writes — so John (her "coworker") and the kiosk and her phone all see HER data.
+// Same value the device/bot token resolves to (GAEDHD_NOW_EMAIL, else the first
+// ALLOWED_EMAILS entry). Revert to per-session email here when we whitelabel.
+export function accountEmail(): string | null {
+  return configuredEmail()
+}
+
 // Pull the bearer token from the Authorization header, else the ?token= param.
 function providedToken(request: Request): string | null {
   const header = request.headers.get('authorization') || ''

@@ -1,4 +1,5 @@
 import { auth } from '@/auth'
+import { accountEmail } from '@/lib/now-auth'
 import { getSupabaseAdmin, supabaseConfigured, STATE_TABLE } from '@/lib/supabase-server'
 import type { CalendarSource } from '@/lib/store'
 import type { CalendarEvent } from '@/lib/types'
@@ -24,9 +25,13 @@ export async function GET(request: Request) {
     : new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
 
   const session = await auth()
-  const email = session?.user?.email?.toLowerCase()
-  if (!email) {
+  if (!session?.user?.email) {
     return Response.json({ error: 'unauthorized' }, { status: 401 })
+  }
+  // Shared account: every signed-in allowed user sees the same primary calendar.
+  const email = accountEmail()
+  if (!email) {
+    return Response.json({ error: 'no_user_configured' }, { status: 500 })
   }
 
   // Optional per-user diagnostic: ?debug=1 reports feed health for the CALLER's
