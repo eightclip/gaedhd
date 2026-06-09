@@ -199,13 +199,13 @@ function saveCache(state: AppState) {
   }
 }
 
-function saveToServer(state: AppState) {
-  if (typeof window === 'undefined') return
-  fetch('/api/state', {
+function saveToServer(state: AppState): Promise<void> {
+  if (typeof window === 'undefined') return Promise.resolve()
+  return fetch('/api/state', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ state }),
-  }).catch(() => {
+  }).then(() => {}).catch(() => {
     // Offline or sync unavailable — localStorage cache still holds the data.
   })
 }
@@ -214,6 +214,13 @@ export function useStore() {
   const [state, setState] = useState<AppState>(INITIAL_STATE)
   const [loaded, setLoaded] = useState(false)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // True once we've reconciled with the server at least once. We only push to the
+  // cloud after this, so a device whose first load failed can't overwrite good
+  // cloud data with its local/mock state.
+  const reconciledRef = useRef(false)
+  // True while there are local edits not yet pushed. Pull-sync skips when dirty so
+  // an incoming poll can't revert an edit she just made before it's saved.
+  const dirtyRef = useRef(false)
 
   // Load: localStorage cache first (instant paint), then reconcile with the
   // server, which is the source of truth across devices.
@@ -228,9 +235,11 @@ export function useStore() {
         if (!cancelled && res.ok) {
           const data = await res.json()
           if (data.state) {
+            reconciledRef.current = true
             setState(mergeState(data.state))
           } else {
             // Server has nothing yet — first sync, push the local cache up.
+            reconciledRef.current = true
             saveToServer(cache)
           }
         }
@@ -250,9 +259,48 @@ export function useStore() {
   useEffect(() => {
     if (!loaded) return
     saveCache(state)
+    // Only push once we've reconciled with the server (see reconciledRef) so a
+    // failed-load device can't clobber good cloud data.
+    if (!reconciledRef.current) return
+    dirtyRef.current = true
     if (saveTimer.current) clearTimeout(saveTimer.current)
-    saveTimer.current = setTimeout(() => saveToServer(state), 800)
+    saveTimer.current = setTimeout(() => {
+      saveToServer(state).finally(() => { dirtyRef.current = false })
+    }, 800)
   }, [state, loaded])
+
+  // Pull the latest cloud state so a change made on another device (her phone, the
+  // computer, John's "coworker" login) shows up here. Skips while there are unsaved
+  // local edits, so an incoming poll can't revert something she just did.
+  const pullFromServer = useCallback(async () => {
+    if (dirtyRef.current) return
+    try {
+      const res = await fetch('/api/state')
+      if (!res.ok) return
+      const data = await res.json()
+      if (data.state) {
+        reconciledRef.current = true
+        setState(mergeState(data.state))
+      }
+    } catch {
+      // offline — keep current state
+    }
+  }, [])
+
+  // Converge across devices: pull when this tab regains focus/visibility (she just
+  // switched to it) and on a slow background tick.
+  useEffect(() => {
+    if (!loaded) return
+    const onVisible = () => { if (document.visibilityState === 'visible') pullFromServer() }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', pullFromServer)
+    const id = setInterval(pullFromServer, 30_000)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', pullFromServer)
+      clearInterval(id)
+    }
+  }, [loaded, pullFromServer])
 
   const addGoal = useCallback((goal: Goal, tasks: MicroTask[]) => {
     setState(prev => ({

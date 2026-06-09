@@ -1,4 +1,5 @@
 import { auth } from '@/auth'
+import { accountEmail } from '@/lib/now-auth'
 import { getSupabaseAdmin, supabaseConfigured, PRESENCE_TABLE } from '@/lib/supabase-server'
 
 export const runtime = 'nodejs'
@@ -10,7 +11,7 @@ export async function GET() {
   if (!supabaseConfigured()) return Response.json({ room: null })
 
   const session = await auth()
-  const email = session?.user?.email?.toLowerCase()
+  const email = session?.user?.email ? accountEmail() : null
   if (!email) return Response.json({ error: 'unauthorized' }, { status: 401 })
 
   const supabase = getSupabaseAdmin()
