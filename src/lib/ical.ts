@@ -5,7 +5,31 @@ import type { CalendarEvent } from './types'
 import type { CalendarSource } from './store'
 
 export function normalizeUrl(url: string): string {
-  return url.trim().replace(/^webcal:\/\//i, 'https://')
+  const u = url.trim().replace(/^webcal:\/\//i, 'https://')
+
+  // Google Calendar hands out a few different "public" links, but only the iCal
+  // feed (.../ical/<id>/public/basic.ics) is actually fetchable. If she pasted the
+  // embed page (?src=…) or a share link (?cid=…) instead, convert it to that feed.
+  try {
+    const parsed = new URL(u)
+    if (/(?:^|\.)calendar\.google\.com$/i.test(parsed.hostname) && !/\/ical\//i.test(parsed.pathname)) {
+      let calId = parsed.searchParams.get('src')
+      if (!calId) {
+        const cid = parsed.searchParams.get('cid')
+        // cid is base64url of the calendar id.
+        if (cid) {
+          try { calId = Buffer.from(cid.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8').trim() } catch { /* not decodable */ }
+        }
+      }
+      if (calId) {
+        return `https://calendar.google.com/calendar/ical/${encodeURIComponent(calId)}/public/basic.ics`
+      }
+    }
+  } catch {
+    // Not a parseable URL — fall through and return it as-is.
+  }
+
+  return u
 }
 
 export function sameDay(a: Date, b: Date): boolean {
