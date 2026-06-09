@@ -1,4 +1,5 @@
 import { auth } from '@/auth'
+import { accountEmail } from '@/lib/now-auth'
 import { getSupabaseAdmin, supabaseConfigured, STATE_TABLE } from '@/lib/supabase-server'
 
 export async function GET() {
@@ -7,9 +8,13 @@ export async function GET() {
   }
 
   const session = await auth()
-  const email = session?.user?.email?.toLowerCase()
-  if (!email) {
+  if (!session?.user?.email) {
     return Response.json({ error: 'unauthorized' }, { status: 401 })
+  }
+  // Shared account: every signed-in allowed user reads/writes the same primary row.
+  const email = accountEmail()
+  if (!email) {
+    return Response.json({ error: 'no_user_configured' }, { status: 500 })
   }
 
   const supabase = getSupabaseAdmin()
@@ -32,9 +37,13 @@ export async function PUT(request: Request) {
   }
 
   const session = await auth()
-  const email = session?.user?.email?.toLowerCase()
-  if (!email) {
+  if (!session?.user?.email) {
     return Response.json({ error: 'unauthorized' }, { status: 401 })
+  }
+  // Shared account: every signed-in allowed user reads/writes the same primary row.
+  const email = accountEmail()
+  if (!email) {
+    return Response.json({ error: 'no_user_configured' }, { status: 500 })
   }
 
   let state: unknown

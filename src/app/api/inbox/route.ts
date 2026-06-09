@@ -1,6 +1,6 @@
 import { auth } from '@/auth'
 import { getSupabaseAdmin, supabaseConfigured, INBOX_TABLE } from '@/lib/supabase-server'
-import { nowTokenEmail } from '@/lib/now-auth'
+import { nowTokenEmail, accountEmail } from '@/lib/now-auth'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
   let source = body.source || 'api'
   if (!email) {
     const session = await auth()
-    email = session?.user?.email?.toLowerCase() ?? null
+    email = session?.user?.email ? accountEmail() : null
     source = body.source || 'app'
   }
   if (!email) return Response.json({ error: 'unauthorized' }, { status: 401 })
@@ -47,7 +47,7 @@ export async function POST(request: Request) {
 export async function GET() {
   if (!supabaseConfigured()) return Response.json({ items: [] })
   const session = await auth()
-  const email = session?.user?.email?.toLowerCase()
+  const email = session?.user?.email ? accountEmail() : null
   if (!email) return Response.json({ error: 'unauthorized' }, { status: 401 })
 
   const supabase = getSupabaseAdmin()
@@ -66,7 +66,7 @@ export async function GET() {
 export async function DELETE(request: Request) {
   if (!supabaseConfigured()) return Response.json({ error: 'sync_not_configured' }, { status: 503 })
   const session = await auth()
-  const email = session?.user?.email?.toLowerCase()
+  const email = session?.user?.email ? accountEmail() : null
   if (!email) return Response.json({ error: 'unauthorized' }, { status: 401 })
 
   const id = new URL(request.url).searchParams.get('id')
