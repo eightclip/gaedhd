@@ -14,6 +14,13 @@ create table if not exists gaedhd_presence (
 );
 alter table gaedhd_presence enable row level security;
 
+-- Area-transition dedup for /api/enter (the in-house room nudge). last_ping_room
+-- is the area she was last actually nudged for (the "anchor"); a room only
+-- re-pings once she's been nudged in a DIFFERENT area since. last_ping_at lets
+-- the anchor expire after a few hours so returning the next day pings again.
+alter table gaedhd_presence add column if not exists last_ping_room text;
+alter table gaedhd_presence add column if not exists last_ping_at   timestamptz;
+
 -- Append-only capture inbox. Every async door (Telegram bot, email, John adding
 -- to her list) inserts a row; the app drains it. Append-only avoids clobbering
 -- the single state blob when several writers act at once.
