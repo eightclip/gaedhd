@@ -13,7 +13,7 @@ export function ImportantDates({ dates, now }: { dates: ImportantDate[]; now: Da
 
   return (
     <section className="mb-10">
-      <h2 className="font-display text-3xl font-bold tracking-tight mb-4">Coming <span className="italic font-normal">up</span></h2>
+      <h2 className="font-display text-2xl font-bold tracking-tight mb-4">Coming <span className="italic font-normal">up</span></h2>
       <div className="space-y-2">
         {upcoming.map(u => {
           const today = u.daysUntil === 0

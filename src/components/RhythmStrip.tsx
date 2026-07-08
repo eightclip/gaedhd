@@ -33,7 +33,7 @@ export function RhythmStrip({ rituals, ritualLog, now, onComplete, onUndo, hideP
 
   return (
     <section className="mb-10">
-      <h2 className="font-display text-3xl font-bold tracking-tight mb-4">
+      <h2 className="font-display text-2xl font-bold tracking-tight mb-4">
         Your <span className="italic font-normal">rhythm</span>
       </h2>
 
