@@ -80,8 +80,39 @@ and buzzes her wrist with the right nudge the moment she gets there.
 ## 4. Verify Vercel env (Production)
 
 Vercel → the `gaedhd` project → Settings → Environment Variables. Confirm these exist:
-- `ALLOWED_EMAILS` = her email + yours (this is the access gate; if blank, the app is open).
+- `ALLOWED_EMAILS` = her email + yours, comma-separated (this is the access gate). In
+  production a blank or missing value fails **CLOSED** — it denies *everyone* (see
+  `src/auth.ts:19`), so this MUST be set or no one can sign in. (Allow-all only ever
+  applies in local dev.)
 - `ANTHROPIC_API_KEY`, `GAEDHD_NOW_TOKEN`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`.
+
+**Sign-in (NextAuth v5 + Google) — required, and easy to miss.** next-auth reads these
+three from the environment *internally*; they never appear in a `process.env` grep, so
+a rebuilder won't discover them from the code. All three are required for login to work:
+- `AUTH_SECRET` = a random secret (`openssl rand -base64 32` or `npx auth secret`).
+- `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET` = the OAuth client credentials from Google Cloud.
+
+To get the Google credentials: **Google Cloud Console → APIs & Services → Credentials →
+Create Credentials → OAuth client ID → Web application.** Add the authorized redirect URI:
+```
+https://gaedhd.jmj.fyi/api/auth/callback/google
+```
+(For local dev also add `http://localhost:3000/api/auth/callback/google`.) Copy the client
+ID → `AUTH_GOOGLE_ID` and client secret → `AUTH_GOOGLE_SECRET`. Configure the OAuth consent
+screen if prompted; only the emails in `ALLOWED_EMAILS` can actually get in regardless.
+
+**Other server env the app reads (all optional but each has a real effect):**
+- `GAEDHD_NOW_EMAIL` = the single shared account email that the device/bot token and every
+  signed-in user read/write (`src/lib/now-auth.ts:13`). If unset, it falls back to the
+  first entry in `ALLOWED_EMAILS`. Set it explicitly if that first entry isn't the account
+  that owns the data.
+- `CRON_SECRET` = secret for the daily presence reset cron (`src/app/api/presence/reset/route.ts:16`).
+  Vercel injects `Authorization: Bearer <CRON_SECRET>` into scheduled cron calls; set it so
+  the reset endpoint (see `vercel.json`) authorizes. The device token also works by hand.
+- `GAEDHD_TZ` = her timezone for all server-side "her local hour/date" logic
+  (`src/lib/clock.ts:6`). Defaults to `America/Los_Angeles`; set only if she moves.
+- `JOHN_CHAT_ID` = John's Telegram chat ID, so `/api/focus` can ping him to body-double
+  (`src/lib/notify.ts:33`). Optional; body-doubling pings just no-op without it.
 
 For the wrist nudges on arrival (`/api/arrive` sends to both channels):
 - `TELEGRAM_BOT_TOKEN` = same value as the bot's `.env` (BotFather token).
@@ -93,8 +124,9 @@ build-time for the public key, so set them, then redeploy:
   `npx web-push generate-vapid-keys`).
 - `VAPID_SUBJECT` = `mailto:eightclip@gmail.com` (optional, has a default).
 
-One-time DB step: run the two new tables at the bottom of `supabase-migrations.sql`
-(`gaedhd_arrival_log`, `gaedhd_push_subs`) in the GaeDHD Supabase SQL editor.
+One-time DB step: run the **whole** `supabase-migrations.sql` file in the GaeDHD Supabase
+SQL editor. It creates every table the app needs (`gaedhd_state` first, then presence,
+inbox, arrival log, push subs, spot tasks) and is idempotent, so it's safe to re-run.
 
 ---
 

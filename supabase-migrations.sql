@@ -1,8 +1,22 @@
--- GaeDHD extra tables. Run this in the GaeDHD Supabase project's SQL editor
--- (project vqnkfbceuodzrynfccnf — NOT the TrakMac project).
+-- GaeDHD database schema. Run this WHOLE file in the GaeDHD Supabase project's
+-- SQL editor (project vqnkfbceuodzrynfccnf — NOT the TrakMac project). It is
+-- idempotent (every statement is `if not exists`), so re-running it is safe.
 --
--- Same security model as gaedhd_state: RLS on, no policies, so only the
--- service-role key (used server-side in the API routes) can read/write.
+-- Security model, same for every table here: RLS on, NO policies, so only the
+-- service-role key (used server-side in the API routes) can read/write. Per-user
+-- access is enforced in the API routes via the NextAuth session / device token.
+
+-- The core sync table: EVERY goal, task, ritual log, streak, setting, and
+-- calendar URL lives in the single `state` jsonb blob, one row per account.
+-- Read/written by /api/state (see src/app/api/state/route.ts): it selects on
+-- user_email and upserts with onConflict: 'user_email'. This must exist before
+-- the app can sync anything, so it's first.
+create table if not exists gaedhd_state (
+  user_email text primary key,
+  state      jsonb,
+  updated_at timestamptz default now()
+);
+alter table gaedhd_state enable row level security;
 
 -- Where she is right now. Written by /api/here (Home Assistant, NFC, Shortcuts,
 -- or the in-app room switcher); read by the app for "while you're here".
