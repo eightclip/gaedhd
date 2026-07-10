@@ -63,7 +63,7 @@ export function PushToggle() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ subscription: sub }),
       })
-      if (!res.ok) throw new Error('Could not save the subscription')
+      if (!res.ok) throw new Error("Couldn't turn these on right now. Try again in a minute.")
       setSubscribed(true)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong turning these on.')

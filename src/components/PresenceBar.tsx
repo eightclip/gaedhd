@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { MapPin, Check, Palette, Briefcase, Coffee, Moon, Sofa, Leaf, Dumbbell, Car, Sparkles, type LucideIcon } from 'lucide-react'
+import { MapPin, Check, Palette, Briefcase, Coffee, Moon, Sofa, Leaf, Dumbbell, Car, Home, School, Sparkles, type LucideIcon } from 'lucide-react'
 import type { TaskWithGoal, SpotTask } from '@/lib/types'
 import type { Ritual } from '@/lib/rituals'
 import { rankRituals } from '@/lib/rituals'
@@ -19,6 +19,10 @@ const ROOMS: { key: string; label: string; Icon: LucideIcon }[] = [
   { key: 'yard', label: 'Yard', Icon: Leaf },
   { key: 'gym', label: 'Gym', Icon: Dumbbell },
   { key: 'errands', label: 'Out', Icon: Car },
+  // Geofence arrivals: /api/arrive upserts these room keys, so they must exist here
+  // too — otherwise the label lookup below falls through to "undefined".
+  { key: 'home', label: 'Home', Icon: Home },
+  { key: 'school', label: 'School', Icon: School },
 ]
 
 interface PresenceBarProps {
@@ -41,7 +45,9 @@ export function PresenceBar({ tasks, rituals, ritualLog, now, onCompleteTask, on
   const loadWhere = useCallback(() => {
     fetch('/api/where')
       .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (d?.room) setRoom(d.room) })
+      // Clear when /api/where reports no room (stale >3h or after the daily reset),
+      // so a stale room can't linger on screen until a full reload.
+      .then(d => { setRoom(d?.room ?? null) })
       .catch(() => {})
   }, [])
 
@@ -126,12 +132,25 @@ export function PresenceBar({ tasks, rituals, ritualLog, now, onCompleteTask, on
     )
   }
 
+  // Fall back to a humanized room slug so an unknown room never prints "undefined".
+  const roomLabel = (meta?.label ?? room.replace(/_/g, ' ')).toLowerCase()
+
+  // Not every place takes "in the". The geofence rooms (home, school, errands)
+  // read wrong that way — "While you're in the home" — so each place carries its
+  // own phrase. Anything unknown falls back to the safe "in the <slug>".
+  const WHERE_PHRASE: Record<string, string> = {
+    home: 'at home',
+    school: 'at school',
+    errands: 'out and about',
+  }
+  const wherePhrase = WHERE_PHRASE[room] ?? `in the ${roomLabel}`
+
   return (
     <section className="mb-8">
       <button onClick={() => setPicking(p => !p)} className="flex items-center gap-2 mb-3">
         {MetaIcon && <MetaIcon size={18} className="text-today-ink" />}
         <p className="text-xs font-bold uppercase tracking-widest text-today-ink">
-          {hasItems ? `Right here, right now · ${meta?.label.toLowerCase()}` : `While you're in the ${meta?.label.toLowerCase()}`}
+          {hasItems ? `Right here, right now · ${roomLabel}` : `While you're ${wherePhrase}`}
         </p>
         <MapPin size={13} className="text-muted" />
       </button>

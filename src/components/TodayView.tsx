@@ -335,7 +335,7 @@ export function TodayView() {
             <div className="bg-success-soft rounded-[2rem] p-10 text-center">
               <Illo src={pickDaily(DONE_ILLOS)} className="h-28 w-auto mx-auto mb-4" />
               <h2 className="font-display text-3xl font-bold">All <span className="italic font-normal">clear</span></h2>
-              <p className="text-muted text-sm mt-1">Nothing on the list. Go do something you love.</p>
+              <p className="text-muted text-sm mt-1">Nothing needs you right now. Enjoy it.</p>
             </div>
           ) : (
             <button onClick={() => setCaptureOpen(true)} className="w-full bg-today-tint rounded-[2rem] p-10 text-center hover:opacity-90 transition-opacity">
@@ -411,7 +411,8 @@ export function TodayView() {
     <div className="grid grid-cols-3 gap-3 mb-10">
       <div className="rounded-[1.5rem] p-5" style={{ backgroundColor: 'var(--today-tint)' }}>
         <p className="font-display text-4xl font-extrabold leading-none text-today-ink">{momentum.streak}</p>
-        <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mt-2">{momentum.weekCount}/7 this week</p>
+        <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mt-2">day streak</p>
+        <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mt-1">{momentum.weekCount}/7 this week</p>
       </div>
       <div className="rounded-[1.5rem] p-5 bg-success-soft">
         <p className="font-display text-4xl font-extrabold leading-none text-success">{completedTasks}</p>

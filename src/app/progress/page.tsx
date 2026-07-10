@@ -49,7 +49,8 @@ export default function ProgressPage() {
       <div className="grid grid-cols-3 gap-3 mb-10">
         <div className="rounded-[1.5rem] p-5 text-center" style={{ backgroundColor: 'var(--today-tint)' }}>
           <p className="font-display text-4xl font-extrabold leading-none text-today-ink">{momentum.streak}</p>
-          <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mt-2">{momentum.weekCount}/7 this week</p>
+          <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mt-2">day streak</p>
+          <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mt-1">{momentum.weekCount}/7 this week</p>
         </div>
         <div className="rounded-[1.5rem] p-5 text-center bg-success-soft">
           <p className="font-display text-4xl font-extrabold leading-none text-success">{completedTasks}</p>
