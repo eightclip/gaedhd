@@ -85,15 +85,18 @@ export async function PUT(request: Request) {
     // already exists (another device raced us to the first write), the primary-key
     // unique violation (23505) becomes a 409 so the client merges instead of blindly
     // overwriting.
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from(STATE_TABLE)
       .insert({ user_email: email, state, updated_at: newUpdatedAt })
+      .select('updated_at')
+      .maybeSingle()
 
     if (error) {
       if (error.code === '23505') return conflict()
       return Response.json({ error: error.message }, { status: 500 })
     }
-    return Response.json({ ok: true, updatedAt: newUpdatedAt })
+    // Echo what the DB actually stored — see the note on the update path below.
+    return Response.json({ ok: true, updatedAt: data?.updated_at ?? newUpdatedAt })
   }
 
   // Compare-and-swap: only overwrite if the row STILL carries the version we based
@@ -105,7 +108,7 @@ export async function PUT(request: Request) {
     .update({ state, updated_at: newUpdatedAt })
     .eq('user_email', email)
     .eq('updated_at', baseUpdatedAt)
-    .select('user_email')
+    .select('updated_at')
 
   if (error) {
     return Response.json({ error: error.message }, { status: 500 })
@@ -114,5 +117,12 @@ export async function PUT(request: Request) {
     return conflict()
   }
 
-  return Response.json({ ok: true, updatedAt: newUpdatedAt })
+  // Echo the value the DATABASE stored, never the one we computed. gaedhd_state
+  // was created by hand, so we cannot be sure a BEFORE UPDATE trigger isn't
+  // rewriting updated_at to now(). If one is, our own `newUpdatedAt` is a lie:
+  // the client would send it back as `baseUpdatedAt`, the compare-and-swap would
+  // miss, and every single save from then on would 409 → merge → retry. It would
+  // still converge (no data lost) but it would double every write forever.
+  // Reading the stored value back makes the whole question moot.
+  return Response.json({ ok: true, updatedAt: data[0].updated_at ?? newUpdatedAt })
 }
