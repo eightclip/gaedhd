@@ -146,13 +146,35 @@ const INITIAL_STATE: AppState = {
   asyncMeetings: [],
   importantDateLog: {},
   birthdayMomentYear: 0,
-  streak: 5,
-  tasksCompletedToday: 3,
-  // Seed the demo with the last 5 days active so momentum reads sensibly on first run.
-  activeDays: Array.from({ length: 5 }, (_, i) => {
-    const t = new Date()
-    return localDateStr(new Date(t.getFullYear(), t.getMonth(), t.getDate() - i))
-  }),
+  // Start honest: no fabricated streak or active days. A day-one account must not
+  // be shown a "5 day streak" it didn't earn (see gaedhd-copy-clarity — plain, true
+  // copy for Gaelyn). Her real taps build these up from zero.
+  streak: 0,
+  tasksCompletedToday: 0,
+  activeDays: [],
+  moodLog: {},
+  featureUsage: {},
+}
+
+// A genuinely blank slate for "Reset all data". No mock goals/tasks, no fake
+// streak, no fabricated active days, empty logs. resetData() overlays her real
+// settings + rituals on top so the app still works after a reset; her actual
+// activity rebuilds the streak from 0. Kept separate from INITIAL_STATE (which is
+// also the first-paint/first-run seed) so a reset can never re-install demo data.
+const EMPTY_STATE: AppState = {
+  goals: [],
+  microTasks: [],
+  parkingLot: [],
+  chatMessages: INITIAL_STATE.chatMessages,
+  settings: DEFAULT_SETTINGS,
+  rituals: DEFAULT_RITUALS,
+  ritualLog: {},
+  asyncMeetings: [],
+  importantDateLog: {},
+  birthdayMomentYear: 0,
+  streak: 0,
+  tasksCompletedToday: 0,
+  activeDays: [],
   moodLog: {},
   featureUsage: {},
 }
@@ -199,15 +221,123 @@ function saveCache(state: AppState) {
   }
 }
 
-function saveToServer(state: AppState): Promise<void> {
-  if (typeof window === 'undefined') return Promise.resolve()
-  return fetch('/api/state', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ state }),
-  }).then(() => {}).catch(() => {
-    // Offline or sync unavailable — localStorage cache still holds the data.
-  })
+// A dirty marker persisted ALONGSIDE the cache. If she taps something while the
+// sync is down and then reloads, this survives the reload so the reconciler knows
+// to MERGE her local edits into the server blob instead of blindly adopting it (and
+// silently dropping the offline edit).
+const DIRTY_KEY = 'gaedhd-dirty'
+function loadDirtyMarker(): boolean {
+  if (typeof window === 'undefined') return false
+  try { return localStorage.getItem(DIRTY_KEY) === '1' } catch { return false }
+}
+function saveDirtyMarker(dirty: boolean) {
+  if (typeof window === 'undefined') return
+  try {
+    if (dirty) localStorage.setItem(DIRTY_KEY, '1')
+    else localStorage.removeItem(DIRTY_KEY)
+  } catch {
+    // localStorage full or unavailable
+  }
+}
+
+// ─── Field-aware merge (a completion can never be lost) ──────────
+// Used when two devices raced (server returns 409 on a stale write) or when we
+// reconnect after an outage. Rule of thumb: append-only / monotonic data is
+// UNIONed so a tap made on either device always survives; free-form data
+// (settings, chat) is last-writer-wins. `local` is THIS device's state (the
+// writer's intent); `server` is the other side we're reconciling against.
+
+function unionSorted(a: string[] = [], b: string[] = []): string[] {
+  // ISO timestamps and YYYY-MM-DD both sort chronologically as plain strings.
+  return Array.from(new Set([...a, ...b])).sort()
+}
+
+function mergeRitualLog(
+  a: Record<string, string[]> = {},
+  b: Record<string, string[]> = {},
+): Record<string, string[]> {
+  const out: Record<string, string[]> = {}
+  for (const id of new Set([...Object.keys(a), ...Object.keys(b)])) {
+    out[id] = unionSorted(a[id], b[id])
+  }
+  return out
+}
+
+function mergeFeatureUsage(
+  a: Record<string, number> = {},
+  b: Record<string, number> = {},
+): Record<string, number> {
+  const out: Record<string, number> = {}
+  for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) {
+    // MAX, never sum: a retried PUT must not double-count a tap.
+    out[k] = Math.max(a[k] ?? 0, b[k] ?? 0)
+  }
+  return out
+}
+
+// Merge two id-keyed lists. UNION by id so nothing captured on one device is
+// dropped, resolving id collisions with `pick`. No tombstones exist, so a delete
+// on one device can be resurrected by a stale copy on the other — an accepted
+// trade: re-showing a deleted item is recoverable; losing a completion or a
+// capture is not.
+function mergeById<T extends { id: string }>(
+  local: T[] = [],
+  server: T[] = [],
+  pick: (localItem: T, serverItem: T) => T,
+): T[] {
+  const merged = new Map<string, T>()
+  for (const item of server) merged.set(item.id, item)
+  for (const item of local) {
+    const other = merged.get(item.id)
+    merged.set(item.id, other ? pick(item, other) : item)
+  }
+  // Keep local's ordering first (new items are prepended), then server-only items.
+  const ordered: T[] = []
+  const seen = new Set<string>()
+  for (const item of local) if (!seen.has(item.id)) { ordered.push(merged.get(item.id)!); seen.add(item.id) }
+  for (const item of server) if (!seen.has(item.id)) { ordered.push(merged.get(item.id)!); seen.add(item.id) }
+  return ordered
+}
+
+function pickTask(local: MicroTask, server: MicroTask): MicroTask {
+  const localDone = local.status === 'completed'
+  const serverDone = server.status === 'completed'
+  // Completion is monotonic: if either side completed it, it stays completed and we
+  // keep the later completedAt. Never resurrect a completed task as pending.
+  if (localDone && serverDone) return (local.completedAt ?? '') >= (server.completedAt ?? '') ? local : server
+  if (localDone) return local
+  if (serverDone) return server
+  // Neither completed: last-writer (local) wins for in-flight edits (skip, retitle).
+  return local
+}
+
+function pickParking(local: ParkingLotItem, server: ParkingLotItem): ParkingLotItem {
+  // `processed` is monotonic (once drained from the inbox it shouldn't return).
+  if (local.processed && !server.processed) return local
+  if (server.processed && !local.processed) return server
+  return local
+}
+
+// Exported so the convergence rules can be exercised directly: this is the one
+// function standing between a two-device race and a completion vanishing.
+export function mergeAppState(local: AppState, server: AppState): AppState {
+  return {
+    // Last-writer default for scalars (streak/tasksCompletedToday are derived day
+    // counters), settings, chatMessages, and asyncMeetings. settings & chatMessages
+    // are free-form, not append-only, so last-writer-wins is acceptable here.
+    ...local,
+    goals: mergeById(local.goals, server.goals, (l) => l),
+    microTasks: mergeById(local.microTasks, server.microTasks, pickTask),
+    parkingLot: mergeById(local.parkingLot, server.parkingLot, pickParking),
+    ritualLog: mergeRitualLog(local.ritualLog, server.ritualLog),
+    activeDays: unionSorted(local.activeDays, server.activeDays),
+    birthdayMomentYear: Math.max(local.birthdayMomentYear || 0, server.birthdayMomentYear || 0),
+    // Union keys; local wins on a same-day conflict. moodLog is one entry per day.
+    moodLog: { ...server.moodLog, ...local.moodLog },
+    // Union keys; values are the monotonic 'queued' marker, so either side is fine.
+    importantDateLog: { ...server.importantDateLog, ...local.importantDateLog },
+    featureUsage: mergeFeatureUsage(local.featureUsage, server.featureUsage),
+  }
 }
 
 export function useStore() {
@@ -218,33 +348,116 @@ export function useStore() {
   // cloud after this, so a device whose first load failed can't overwrite good
   // cloud data with its local/mock state.
   const reconciledRef = useRef(false)
-  // True while there are local edits not yet pushed. Pull-sync skips when dirty so
-  // an incoming poll can't revert an edit she just made before it's saved.
+  // True while there are local edits not yet confirmed-saved. Pull-sync skips when
+  // dirty so an incoming poll can't revert an edit she just made before it's saved.
   const dirtyRef = useRef(false)
+  // The server's updated_at we last reconciled with. Sent as `baseUpdatedAt` on PUT
+  // so the server can compare-and-swap: if another device has written since, our
+  // write is rejected (409) instead of clobbering hers.
+  const baseUpdatedRef = useRef<string | null>(null)
+  // JSON of the state we last know is on the server. Lets the persist effect tell a
+  // real local edit (must push) from merely adopting a pull (must NOT push), so a
+  // pulled value doesn't bounce straight back and churn everyone's updated_at.
+  const lastSyncedJsonRef = useRef<string | null>(null)
+  // Always-latest state, so a debounced/retried push sends the newest value.
+  const stateRef = useRef<AppState>(INITIAL_STATE)
+  // Serializes pushes so the debounce and the retry loop can't PUT concurrently.
+  const savingRef = useRef(false)
 
-  // Load: localStorage cache first (instant paint), then reconcile with the
-  // server, which is the source of truth across devices.
+  // Push the latest local state up with a compare-and-swap. Serialized via
+  // savingRef so the debounce and the retry loop never PUT at once.
+  const pushOnce = useCallback(async () => {
+    if (savingRef.current) return
+    savingRef.current = true
+    const snapshot = stateRef.current
+    try {
+      const res = await fetch('/api/state', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state: snapshot, baseUpdatedAt: baseUpdatedRef.current }),
+      })
+      if (res.status === 409) {
+        // Another device saved between our base and now. MERGE the server's state
+        // into ours additively (a completion/capture can never be lost), show the
+        // converged result, and let the persist effect re-push with the fresh base.
+        const data = await res.json().catch(() => ({} as { state?: unknown; updatedAt?: string }))
+        const serverState = mergeState(data.state as Partial<AppState> | null)
+        const merged = mergeAppState(snapshot, serverState)
+        baseUpdatedRef.current = data.updatedAt ?? null
+        lastSyncedJsonRef.current = JSON.stringify(serverState)
+        stateRef.current = merged
+        setState(merged) // merged !== serverState → effect schedules the retry push
+        return
+      }
+      if (res.ok) {
+        const data = await res.json().catch(() => ({} as { updatedAt?: string }))
+        baseUpdatedRef.current = data.updatedAt ?? baseUpdatedRef.current
+        lastSyncedJsonRef.current = JSON.stringify(snapshot)
+        // Only clear dirty if nothing newer was typed while this save was in flight.
+        if (JSON.stringify(stateRef.current) === lastSyncedJsonRef.current) {
+          dirtyRef.current = false
+          saveDirtyMarker(false)
+        }
+        return
+      }
+      // Non-OK (offline, 401, 5xx): keep dirty + marker set so the edit survives a
+      // reload and is retried by the interval below. NEVER clear dirty on failure.
+    } catch {
+      // Network error mid-flight: same as above — stay dirty, retry later.
+    } finally {
+      savingRef.current = false
+    }
+  }, [])
+
+  // Load: localStorage cache first (instant paint), then reconcile with the server,
+  // which is the source of truth across devices.
   useEffect(() => {
     const cache = loadCache()
+    const wasDirty = loadDirtyMarker()
+    stateRef.current = cache
     setState(cache)
+    dirtyRef.current = wasDirty
+    // If a prior session left an unsynced edit, don't treat the cache as a synced
+    // baseline — force the reconcile below (or a later edit) to push/merge it.
+    lastSyncedJsonRef.current = wasDirty ? null : JSON.stringify(cache)
 
     let cancelled = false
     ;(async () => {
       try {
         const res = await fetch('/api/state')
-        if (!cancelled && res.ok) {
+        if (cancelled) return
+        if (res.ok) {
           const data = await res.json()
+          reconciledRef.current = true
           if (data.state) {
-            reconciledRef.current = true
-            setState(mergeState(data.state))
+            const serverState = mergeState(data.state)
+            if (wasDirty) {
+              // Local edits made before we ever reached the server (an outage, or a
+              // reload mid-sync). MERGE them in so nothing offline is lost, then let
+              // the persist effect push the merged result.
+              const merged = mergeAppState(cache, serverState)
+              baseUpdatedRef.current = data.updatedAt ?? null
+              lastSyncedJsonRef.current = JSON.stringify(serverState)
+              stateRef.current = merged
+              setState(merged)
+            } else {
+              // No pending edits — adopt the server snapshot cleanly.
+              baseUpdatedRef.current = data.updatedAt ?? null
+              lastSyncedJsonRef.current = JSON.stringify(serverState)
+              stateRef.current = serverState
+              setState(serverState)
+            }
           } else {
-            // Server has nothing yet — first sync, push the local cache up.
-            reconciledRef.current = true
-            saveToServer(cache)
+            // Server has nothing yet — first sync ever. Force a push of the local
+            // cache up (base is null → the server inserts the first row).
+            baseUpdatedRef.current = null
+            lastSyncedJsonRef.current = null
           }
         }
       } catch {
-        // Offline / sync down — keep using the local cache.
+        // Offline / sync down — keep the cache. reconciledRef stays false so we
+        // can't clobber good cloud data; a later pull reconciles (and merges any
+        // edits she makes meanwhile, which the persist effect marks dirty).
       } finally {
         if (!cancelled) setLoaded(true)
       }
@@ -255,32 +468,68 @@ export function useStore() {
     }
   }, [])
 
-  // Persist on change: localStorage immediately, server PUT debounced.
+  // Persist on change: localStorage immediately (+ a dirty marker), server PUT
+  // debounced. The dirty bookkeeping runs even before we've reconciled, so an edit
+  // made during an outage is remembered and MERGED later instead of being dropped.
   useEffect(() => {
     if (!loaded) return
+    stateRef.current = state
     saveCache(state)
-    // Only push once we've reconciled with the server (see reconciledRef) so a
-    // failed-load device can't clobber good cloud data.
-    if (!reconciledRef.current) return
+    const json = JSON.stringify(state)
+    // In sync with the server (e.g. we just adopted a pull) — nothing to push.
+    if (json === lastSyncedJsonRef.current) return
     dirtyRef.current = true
+    saveDirtyMarker(true)
+    // Only actually PUT once we've reconciled at least once, so a failed-load
+    // device can't overwrite good cloud data with its local/mock state.
+    if (!reconciledRef.current) return
     if (saveTimer.current) clearTimeout(saveTimer.current)
-    saveTimer.current = setTimeout(() => {
-      saveToServer(state).finally(() => { dirtyRef.current = false })
-    }, 800)
-  }, [state, loaded])
+    saveTimer.current = setTimeout(() => { void pushOnce() }, 800)
+  }, [state, loaded, pushOnce])
+
+  // Retry loop: if a save failed (still dirty), keep trying so an edit made during a
+  // blip eventually lands. Cheap no-op when clean or offline (pushOnce bails).
+  useEffect(() => {
+    if (!loaded) return
+    const id = setInterval(() => {
+      if (dirtyRef.current && reconciledRef.current) void pushOnce()
+    }, 5_000)
+    return () => clearInterval(id)
+  }, [loaded, pushOnce])
 
   // Pull the latest cloud state so a change made on another device (her phone, the
-  // computer, John's "coworker" login) shows up here. Skips while there are unsaved
-  // local edits, so an incoming poll can't revert something she just did.
+  // computer, John's "coworker" login) shows up here.
   const pullFromServer = useCallback(async () => {
-    if (dirtyRef.current) return
+    // Skip a routine converge-poll while we hold unsynced edits that were already
+    // reconciled once — the debounced push owns getting them up, and adopting the
+    // server now would revert them. But the FIRST reconcile must still run even when
+    // dirty, or edits made before we ever reached the server would never sync.
+    if (dirtyRef.current && reconciledRef.current) return
     try {
       const res = await fetch('/api/state')
       if (!res.ok) return
       const data = await res.json()
-      if (data.state) {
-        reconciledRef.current = true
-        setState(mergeState(data.state))
+      const firstReconcile = !reconciledRef.current
+      reconciledRef.current = true
+      const serverState = data.state ? mergeState(data.state) : null
+
+      if (firstReconcile && dirtyRef.current) {
+        // Came online with edits made before we ever reached the server. Merge them
+        // in (additive) so nothing is lost, then let the persist effect push.
+        const local = stateRef.current
+        const merged = serverState ? mergeAppState(local, serverState) : local
+        baseUpdatedRef.current = data.updatedAt ?? null
+        lastSyncedJsonRef.current = serverState ? JSON.stringify(serverState) : null
+        stateRef.current = merged
+        setState(merged)
+        return
+      }
+      if (serverState) {
+        // Routine converge: adopt the server snapshot (we have no pending edits).
+        baseUpdatedRef.current = data.updatedAt ?? null
+        lastSyncedJsonRef.current = JSON.stringify(serverState)
+        stateRef.current = serverState
+        setState(serverState)
       }
     } catch {
       // offline — keep current state
@@ -683,8 +932,10 @@ export function useStore() {
         const key = `${d.id}-${next.getFullYear()}`
         if (daysUntil > d.leadDays || log[key]) continue
         const goalId = `goal-${key}`
-        const what = d.kind === 'anniversary' ? 'anniversary' : 'birthday'
-        newGoals.push({ id: goalId, title: `${d.label} ${what} gift`, description: '', category: 'errands', lifeArea: 'family', priority: 4, progressPct: 0, createdAt: new Date().toISOString(), emoji: '' })
+        // The label already names the occasion ("Wedding anniversary", "Older
+        // kiddo's birthday"), so just append "gift" — no duplicated kind word
+        // ("... anniversary anniversary gift").
+        newGoals.push({ id: goalId, title: `${d.label} gift`, description: '', category: 'errands', lifeArea: 'family', priority: 4, progressPct: 0, createdAt: new Date().toISOString(), emoji: '' })
         const steps = [`Think of a gift idea for ${d.label}`, 'Order or buy the gift', 'Get a card', 'Wrap it and set it aside']
         steps.forEach((t, i) => newTasks.push({ id: `${goalId}-mt${i}`, goalId, title: t, durationMin: i === 1 ? 15 : 8, energyLevel: 'low', context: 'anywhere', cognitiveLoad: 'light', toolsNeeded: [], phase: 'Gift', sequenceOrder: i + 1, status: 'pending' }))
         log[key] = 'queued'
@@ -751,8 +1002,12 @@ export function useStore() {
     setState(prev => ({ ...prev, birthdayMomentYear: year }))
   }, [])
 
+  // "Reset all data": wipe her goals/tasks/logs/streak to a genuinely EMPTY state
+  // (never the mock demo — that would install a fake 5-day streak and fabricated
+  // goals, and the persist effect would push that fiction to every device). Keep her
+  // real settings and rituals so the app still works; her real taps rebuild from 0.
   const resetData = useCallback(() => {
-    setState(INITIAL_STATE)
+    setState(prev => ({ ...EMPTY_STATE, settings: prev.settings, rituals: prev.rituals }))
   }, [])
 
   return {
