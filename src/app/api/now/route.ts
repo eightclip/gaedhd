@@ -4,7 +4,7 @@ import type { CalendarSource } from '@/lib/store'
 import type { Ritual } from '@/lib/rituals'
 import { rankRituals, DEFAULT_RITUALS } from '@/lib/rituals'
 import { computeMomentum } from '@/lib/momentum'
-import { localDateAnchor } from '@/lib/clock'
+import { localDateAnchor, startOfLocalDay, APP_TZ } from '@/lib/clock'
 import { currentNextActions, availableActions } from '@/lib/schedule'
 import { upcomingDates } from '@/lib/dates'
 import { fetchEventsForSources } from '@/lib/ical'
@@ -71,7 +71,9 @@ export async function GET(request: Request) {
   // Rituals (never expose private ones to a shared screen).
   const rituals = (state.rituals && state.rituals.length ? state.rituals : DEFAULT_RITUALS).filter(r => !r.private)
   const ritualLog = state.ritualLog ?? {}
-  const statuses = rankRituals(rituals, ritualLog, now)
+  // Rank in HER timezone. This function runs in UTC, so without the tz the day
+  // would roll over at 5pm Pacific and every ritual window would be shifted.
+  const statuses = rankRituals(rituals, ritualLog, now, APP_TZ)
   const ritualsDue = statuses
     .filter(s => s.due)
     .map(s => ({ id: s.ritual.id, title: s.ritual.title, emoji: s.ritual.emoji, nudge: s.ritual.nudge, nudgeVariants: s.ritual.nudgeVariants ?? [], tint: s.ritual.tint }))
@@ -82,8 +84,9 @@ export async function GET(request: Request) {
     return { id: s.ritual.id, title: s.ritual.title, emoji: s.ritual.emoji, tint: s.ritual.tint, due: s.due, doneToday: s.completedToday, target }
   })
 
-  // Today's wins.
-  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  // Today's wins. Anchored to the real instant HER day started, not the server's
+  // UTC midnight — otherwise the kiosk zeroes her counts at 5pm Pacific.
+  const startOfDay = startOfLocalDay(APP_TZ, now)
   const startMs = startOfDay.getTime()
   const doneToday = microTasks.filter(t => t.status === 'completed' && t.completedAt && new Date(t.completedAt) >= startOfDay)
   const completedToday = doneToday.length
@@ -102,8 +105,9 @@ export async function GET(request: Request) {
     .slice(0, 6)
     .map(g => ({ title: g.title, emoji: g.emoji, category: g.category, progressPct: g.progressPct }))
 
-  // Birthdays/anniversaries in the next two weeks.
-  const upcoming = upcomingDates(state.settings?.importantDates ?? [], now, 14)
+  // Birthdays/anniversaries in the next two weeks. Anchor to her local date, or
+  // "days until" is off by one all evening (the UTC date is already tomorrow).
+  const upcoming = upcomingDates(state.settings?.importantDates ?? [], localDateAnchor(APP_TZ, now), 14)
     .map(u => ({ label: u.date.label, daysUntil: u.daysUntil, kind: u.date.kind, years: u.years }))
 
   // Stuff waiting in her dump.
@@ -112,12 +116,16 @@ export async function GET(request: Request) {
   // Forgiving momentum streak (falls back to legacy `streak` for old state blobs).
   // Anchor to HER local date, not the server's UTC date, so the kiosk doesn't
   // drift a day every evening (same class of bug as the quiet-hours TZ fix).
-  const momentum = computeMomentum(state.activeDays ?? [], localDateAnchor())
+  const momentum = computeMomentum(state.activeDays ?? [], localDateAnchor(APP_TZ, now))
   const streak = state.activeDays?.length ? momentum.streak : (state.streak ?? 0)
 
   // Today's meetings (client passes its local day window to avoid timezone drift).
+  // The kiosk passes its own local day window. Callers that don't (the Telegram
+  // bot) get HER day, not the server's UTC one.
   const dayStart = params.get('start') ? new Date(params.get('start')!) : startOfDay
-  const dayEnd = params.get('end') ? new Date(params.get('end')!) : new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
+  const dayEnd = params.get('end')
+    ? new Date(params.get('end')!)
+    : new Date(startOfDay.getTime() + 86_400_000 - 1_000)
   const sources = state.settings?.calendarSources ?? []
   let events: CalendarEvent[] = []
   if (sources.length) {

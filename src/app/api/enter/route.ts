@@ -8,7 +8,7 @@ import {
 } from '@/lib/supabase-server'
 import { sendTelegram, sendWebPush } from '@/lib/notify'
 import { nowTokenEmail } from '@/lib/now-auth'
-import { localHour } from '@/lib/clock'
+import { localHour, APP_TZ } from '@/lib/clock'
 import { rankRituals, DEFAULT_RITUALS, type Ritual } from '@/lib/rituals'
 import type { MicroTask } from '@/lib/types'
 
@@ -118,7 +118,9 @@ async function handle(request: Request) {
   const now = new Date()
   const roomRituals = (state.rituals && state.rituals.length ? state.rituals : DEFAULT_RITUALS)
     .filter(r => r.context != null && area.includes(r.context))
-  const dueRituals = rankRituals(roomRituals, state.ritualLog ?? {}, now)
+  // Rank in HER timezone — see /api/now. On the server's UTC clock a room ritual
+  // would look due in the middle of her night and undone in her afternoon.
+  const dueRituals = rankRituals(roomRituals, state.ritualLog ?? {}, now, APP_TZ)
     .filter(s => s.due)
     .map(s => s.ritual.title)
 

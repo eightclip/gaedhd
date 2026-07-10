@@ -1,3 +1,5 @@
+import { startOfLocalDay, localHourAt, localDayIndex } from './clock'
+
 // Rituals: the recurring rhythms of her day that aren't goals and never "finish".
 // Pills, water, protein, moving, going outside, making content, wrapping up.
 // A ritual has a cadence, an active window, and a gentle nudge. The app answers
@@ -78,11 +80,40 @@ function dayIndex(d: Date): number {
   return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86_400_000)
 }
 
+// Which clock to reason in.
+//
+// In the browser the machine's local time IS her time, so the defaults are right
+// and callers pass no `tz`. On the server it is NOT: Vercel functions run in UTC,
+// so `now.getHours()` is the UTC hour and `startOfToday(now)` is UTC midnight —
+// which rolls her day over at 5pm Pacific and makes every window check wrong.
+// Server callers (/api/now, /api/enter) pass APP_TZ so the day boundary, the hour,
+// and the day index are all computed in HER timezone.
+function resolveClock(now: Date, tz?: string) {
+  if (!tz) {
+    return {
+      today: startOfToday(now),
+      hour: now.getHours(),
+      indexOf: (d: Date) => dayIndex(d),
+    }
+  }
+  return {
+    today: startOfLocalDay(tz, now),
+    hour: Math.floor(localHourAt(now, tz)),
+    indexOf: (d: Date) => localDayIndex(d, tz),
+  }
+}
+
 // Given a ritual and the ISO timestamps it was completed at, decide whether it's
 // due right now and when it's next due. `completions` can hold history; we only
-// look at today.
-export function ritualStatus(ritual: Ritual, completions: string[], now = new Date()): RitualStatus {
-  const today = startOfToday(now)
+// look at today. Pass `tz` from the server; omit it in the browser.
+export function ritualStatus(
+  ritual: Ritual,
+  completions: string[],
+  now = new Date(),
+  tz?: string
+): RitualStatus {
+  const clock = resolveClock(now, tz)
+  const today = clock.today
   // Note: do NOT clamp to `now`. `now` ticks once a minute, so a fresh tap is a
   // few seconds ahead of it; clamping would hide the completion until the next
   // tick. Completions are always real (past) events, so today-start is enough.
@@ -93,7 +124,7 @@ export function ritualStatus(ritual: Ritual, completions: string[], now = new Da
 
   const completedToday = todays.length
   const last = todays[todays.length - 1] ?? null
-  const hour = now.getHours()
+  const hour = clock.hour
   const inWindow = !ritual.window || (hour >= ritual.window.startHour && hour < ritual.window.endHour)
 
   let due = false
@@ -115,8 +146,10 @@ export function ritualStatus(ritual: Ritual, completions: string[], now = new Da
       break
     }
     case 'dailyAt': {
-      const at = new Date(today)
-      at.setHours(ritual.cadence.hour, 0, 0, 0)
+      // Offset from the start of HER day, not the server's. Adding ms to the
+      // day-start instant keeps this correct when `today` is a timezone-resolved
+      // UTC instant rather than a server-local midnight.
+      const at = new Date(today.getTime() + ritual.cadence.hour * 3_600_000)
       due = completedToday === 0 && inWindow && now >= at
       nextDueAt = completedToday === 0 ? at : null
       break
@@ -135,11 +168,13 @@ export function ritualStatus(ritual: Ritual, completions: string[], now = new Da
       if (!lastEver) {
         due = inWindow
       } else {
-        const elapsed = dayIndex(now) - dayIndex(lastEver)
+        const elapsed = clock.indexOf(now) - clock.indexOf(lastEver)
         due = inWindow && elapsed >= ritual.cadence.days
-        const next = new Date(today)
-        next.setDate(next.getDate() + (ritual.cadence.days - elapsed))
-        next.setHours(ritual.window?.startHour ?? 0, 0, 0, 0)
+        const next = new Date(
+          today.getTime() +
+            (ritual.cadence.days - elapsed) * 86_400_000 +
+            (ritual.window?.startHour ?? 0) * 3_600_000
+        )
         nextDueAt = elapsed >= ritual.cadence.days ? null : next
       }
       break
@@ -155,10 +190,11 @@ export function ritualStatus(ritual: Ritual, completions: string[], now = new Da
 export function rankRituals(
   rituals: Ritual[],
   completionsById: Record<string, string[]>,
-  now = new Date()
+  now = new Date(),
+  tz?: string
 ): RitualStatus[] {
   return rituals
-    .map(r => ritualStatus(r, completionsById[r.id] ?? [], now))
+    .map(r => ritualStatus(r, completionsById[r.id] ?? [], now, tz))
     .sort((a, b) => {
       if (a.due !== b.due) return a.due ? -1 : 1
       // Among due items, the one overdue longest (earliest nextDueAt) leads.
