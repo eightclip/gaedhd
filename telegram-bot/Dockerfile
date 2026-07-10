@@ -1,5 +1,14 @@
 FROM node:20-alpine
 
+# The timezone database. Node resolves TZ (America/Los_Angeles, set in
+# docker-compose.yml) through its own bundled ICU data, so quiet hours and the
+# morning prompt were already reading her wall clock without this. But alpine
+# ships no /usr/share/zoneinfo, so every SHELL tool in the container — `date`,
+# and anything that reads /etc/localtime — still printed UTC. That made the
+# container look broken while it was fine, which is its own kind of bug: the
+# next person to check `docker exec ... date` shouldn't have to know about ICU.
+RUN apk add --no-cache tzdata
+
 # Create app directory
 WORKDIR /app
 

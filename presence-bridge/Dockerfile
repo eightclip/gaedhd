@@ -1,5 +1,10 @@
 FROM node:20-alpine
 
+# The timezone database — see the telegram-bot Dockerfile for the full why.
+# Node already honours TZ via bundled ICU; alpine's shell tools don't, so
+# `date` inside the container printed UTC and looked like a broken TZ.
+RUN apk add --no-cache tzdata
+
 WORKDIR /app
 
 # Copy package files first for better layer caching
