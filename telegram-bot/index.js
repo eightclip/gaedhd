@@ -885,7 +885,7 @@ async function downloadTelegramPhoto(fileId) {
 }
 
 /**
- * Sends an image (base64 JPEG) to Anthropic claude-sonnet-4-20250514 vision
+ * Sends an image (base64 JPEG) to Anthropic vision (MODEL above)
  * and extracts an array of { text, kind } to-do items.
  */
 async function extractTodosFromImage(imageBase64) {
