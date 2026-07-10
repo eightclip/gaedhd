@@ -31,7 +31,12 @@ export default function KioskPage() {
   const [now, setNow] = useState(() => new Date())
   const [data, setData] = useState<KioskData | null>(null)
   const [token, setToken] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  // 'setup' = the screen is misconfigured (John needs to fix it); 'unreachable'
+  // = a normal, temporary network/server blip that will clear on its own.
+  const [error, setError] = useState<null | 'setup' | 'unreachable'>(null)
+  // When the last good load happened, so we can tell her if what she's looking
+  // at has gone stale (network dropped and never came back).
+  const [lastLoadedAt, setLastLoadedAt] = useState<number | null>(null)
   const [shift, setShift] = useState({ x: 0, y: 0 })
 
   useEffect(() => {
@@ -52,7 +57,17 @@ export default function KioskPage() {
     const steps = [[0, 0], [4, 2], [6, 0], [3, 4], [0, 6], [-3, 3], [-6, 0], [-3, -3]]
     let i = 0
     const shiftId = setInterval(() => { i = (i + 1) % steps.length; setShift({ x: steps[i][0], y: steps[i][1] }) }, 60_000)
-    const reloadId = setInterval(() => window.location.reload(), 4 * 3_600_000)
+    // Only hard-reload when the app is actually reachable. If we blindly reload
+    // while the network is down, the tab lands on the browser's offline error
+    // page and stays there forever — the app and all its timers are gone, so it
+    // can't recover on its own. Probe first; if it fails, do nothing and let the
+    // next cycle try again.
+    const reloadId = setInterval(async () => {
+      try {
+        const r = await fetch(window.location.href, { method: 'HEAD', cache: 'no-store' })
+        if (r.ok) window.location.reload()
+      } catch { /* unreachable right now — keep the current screen up */ }
+    }, 4 * 3_600_000)
     return () => { clearInterval(shiftId); clearInterval(reloadId) }
   }, [])
 
@@ -64,11 +79,16 @@ export default function KioskPage() {
     const qs = `?token=${encodeURIComponent(token)}&start=${encodeURIComponent(start.toISOString())}&end=${encodeURIComponent(end.toISOString())}`
     fetch(`/api/now${qs}`)
       .then(async r => {
-        if (!r.ok) { setError(r.status === 401 ? 'Bad or missing token' : 'Could not load'); return }
+        // A bad token is a setup problem John has to fix; anything else is a
+        // temporary blip. Leave any previously loaded data in place so the
+        // screen keeps showing the last good picture (with a staleness cue)
+        // rather than blanking out.
+        if (!r.ok) { setError(r.status === 401 ? 'setup' : 'unreachable'); return }
         setError(null)
         setData(await r.json())
+        setLastLoadedAt(Date.now())
       })
-      .catch(() => setError('Offline'))
+      .catch(() => setError('unreachable'))
   }, [token])
 
   useEffect(() => {
@@ -77,18 +97,46 @@ export default function KioskPage() {
     return () => clearInterval(id)
   }, [load])
 
-  if (!token) {
+  // Not set up (no token, or a token the server rejects). Plain wording — she
+  // shouldn't see URLs or tokens; John knows how to fix it.
+  if (!token || error === 'setup') {
     return (
       <div className="h-screen flex items-center justify-center text-center p-10">
         <div>
-          <p className="font-display text-3xl font-bold mb-2">Kiosk needs a token</p>
-          <p className="text-muted font-mono text-sm">open /kiosk?token=YOUR_GAEDHD_NOW_TOKEN</p>
+          <p className="font-display text-[3vw] font-bold mb-[0.6vw]">This screen isn&apos;t set up yet.</p>
+          <p className="font-display text-[1.6vw] text-muted">Ask John.</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Nothing loaded yet. Do NOT fall through to the normal layout: with `data`
+  // still null the "Right now" card would read "Nothing needs you right now" —
+  // a lie, whether we are still fetching or the fetch failed. So there are two
+  // honest states here: still trying, or can't reach it. Neither one tells her
+  // she's free when we simply don't know.
+  if (!data) {
+    const failed = error === 'unreachable'
+    return (
+      <div className="h-screen flex items-center justify-center text-center p-10">
+        <div>
+          <p className="font-display text-[3vw] font-bold mb-[0.6vw]">
+            {failed ? "Can't reach your list right now." : 'Loading your day.'}
+          </p>
+          <p className="font-display text-[1.6vw] text-muted">
+            {failed ? "It'll come back on its own." : 'One moment.'}
+          </p>
         </div>
       </div>
     )
   }
 
   const nowMs = now.getTime()
+  // If the last good load was more than a few minutes ago, the network has
+  // dropped and this is old information that isn't updating. At a 45s refresh,
+  // 5 minutes means several missed refreshes in a row — a real outage, not a
+  // single hiccup. Tell her so she doesn't trust a stale water count or rituals.
+  const stale = lastLoadedAt != null && nowMs - lastLoadedAt > 5 * 60_000
   const events = data?.events ?? []
   const currentMeeting = events.find(e => new Date(e.startTime).getTime() <= nowMs && nowMs < new Date(e.endTime).getTime())
   const nextMeeting = events.find(e => new Date(e.startTime).getTime() > nowMs)
@@ -104,6 +152,14 @@ export default function KioskPage() {
   return (
     <div className="h-screen w-screen overflow-hidden p-[1.8vw] flex flex-col gap-[1.2vw] text-foreground"
       style={{ transform: `translate(${shift.x}px, ${shift.y}px)`, transition: 'transform 3s ease-in-out' }}>
+      {/* Staleness banner. Overlaid at top-center (the empty gap between brand
+          and clock) so it doesn't shift the grid. Legible at 10 feet — not the
+          tiny corner text. Only shows when data has genuinely gone old. */}
+      {stale && (
+        <div className="absolute top-[1.6vw] left-1/2 -translate-x-1/2 z-10 rounded-full bg-[#C85D3E] text-white px-[1.6vw] py-[0.6vw] font-display text-[1.2vw] font-semibold shadow-lg">
+          This is from earlier — not updating right now.
+        </div>
+      )}
       {/* Top bar: brand + date, and the clock */}
       <header className="flex items-end justify-between shrink-0">
         <div className="flex items-center gap-[1vw]">
@@ -259,7 +315,6 @@ export default function KioskPage() {
         </div>
       </div>
 
-      {error && <p className="absolute bottom-1 right-2 font-mono text-[0.7vw] text-muted/40">{error}</p>}
     </div>
   )
 }
