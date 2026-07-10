@@ -5,6 +5,12 @@ services:
     container_name: gaedhd-telegrambot
     restart: unless-stopped
     env_file: .env
+    environment:
+      # The container clock drives quiet-hours (isActiveHour) and the morning
+      # prompt. node:20-alpine defaults to UTC, which would put "active" hours and
+      # the 9am "Good morning" at ~2am Pacific for her. Pin the clock to her wall
+      # time. Overridable via .env if she ever moves timezones.
+      TZ: ${TZ:-America/Los_Angeles}
     logging:
       driver: json-file
       options:

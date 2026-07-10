@@ -66,6 +66,10 @@ const MAX_DISTANCE_M = parseFloat(process.env.MAX_DISTANCE_M || "8"); // ignore 
 const KEEPALIVE_MS = parseInt(process.env.KEEPALIVE_MS || "600000", 10); // 10 min
 const ACTIVE_START = parseInt(process.env.ACTIVE_START || "7", 10);
 const ACTIVE_END = parseInt(process.env.ACTIVE_END || "22", 10);
+// How long currentRoom may go with no fresh reading before we declare presence
+// unknown. Past this she has genuinely left that spot (or the house), so we drop
+// the room instead of clinging to it and re-affirming a place she isn't in.
+const LOST_MS = parseInt(process.env.LOST_MS || "900000", 10); // 15 min
 
 if (!GAEDHD_NOW_TOKEN) {
   console.error("[fatal] GAEDHD_NOW_TOKEN is not set. Exiting.");
@@ -173,15 +177,39 @@ async function refresh(room) {
 }
 
 function inActiveHours() {
-  const h = new Date().getHours(); // QNAP runs in her local timezone
+  const h = new Date().getHours(); // container clock is pinned to her TZ (compose)
   return h >= ACTIVE_START && h < ACTIVE_END;
 }
 
+/** True only if we still have a genuinely fresh reading for `currentRoom`. */
+function currentRoomIsFresh() {
+  if (!currentRoom) return false;
+  const r = readings.get(currentRoom);
+  return !!r && Date.now() - r.ts <= FRESH_MS;
+}
+
 setInterval(() => {
-  if (currentRoom && inActiveHours()) refresh(currentRoom);
+  // Only re-affirm the room if we STILL actually hear her there. Without this
+  // freshness gate a stale currentRoom (she left the house) got POSTed every 10
+  // min forever — faking a fresh updated_at, defeating the app's 3h staleness
+  // null-out, and surfacing that room's tasks while she's at the store.
+  if (currentRoomIsFresh() && inActiveHours()) refresh(currentRoom);
 }, KEEPALIVE_MS);
 
 setInterval(() => {
+  // If currentRoom has had no fresh reading for a long while, she's gone — drop
+  // it so presence goes properly unknown instead of sticking on a room she left.
+  if (currentRoom) {
+    const r = readings.get(currentRoom);
+    const staleFor = r ? Date.now() - r.ts : Infinity;
+    if (staleFor > LOST_MS) {
+      const secs = Number.isFinite(staleFor) ? Math.round(staleFor / 1000) : "∞";
+      console.log(`[presence] ${currentRoom} lost (no fresh reading for ${secs}s) — presence now unknown`);
+      currentRoom = null;
+      candidate = null;
+    }
+  }
+
   const near = nearestRoom();
   if (!near) return; // beacon not heard near any node right now — keep last room, do nothing
 
