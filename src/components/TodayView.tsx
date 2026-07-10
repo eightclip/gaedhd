@@ -32,7 +32,8 @@ import type { CalendarEvent, TimelineItem } from '@/lib/types'
 import { useStore } from '@/lib/store'
 import { computeMomentum, localDateStr } from '@/lib/momentum'
 import { computeGaps, slotTasks, currentNextActions, availableActions, materializeFixedBlocks, ymd } from '@/lib/schedule'
-import { ProgressRing } from './ProgressRing'
+import { isGoalActive, stepsDone } from '@/lib/goals'
+import { useGoalTopUp } from '@/lib/useGoalTopUp'
 
 // Quick timed breaks. Snack/bathroom prompt a water refill since she's already up.
 const BREAKS = [
@@ -134,6 +135,19 @@ export function TodayView() {
   useEffect(() => {
     if (store.loaded) store.queueBirthdayPrep(new Date())
   }, [store.loaded, store.queueBirthdayPrep])
+
+  // Any goal that has run out of steps quietly gets its next few from Claude, based
+  // on what she's already done. Without this a goal is decomposed exactly once and
+  // then stops appearing in her day forever — the whole point of the app.
+  useGoalTopUp({
+    goals: store.goals,
+    microTasks: store.microTasks,
+    loaded: store.loaded,
+    apiKey: store.settings.anthropicApiKey,
+    userContext: store.settings.userContext,
+    topUpGoal: store.topUpGoal,
+    markGoalDone: store.markGoalDone,
+  })
 
   // currentNextActions = one step per goal (used for room/presence matching).
   // availableActions = the fuller pool (flexible goals offer all their steps),
@@ -457,21 +471,25 @@ export function TodayView() {
         {store.goals.map((goal, i) => {
           const color = categoryColors[goal.category] || '#8B6F5E'
           const GoalIcon = categoryIcon(goal.category)
-          const taskCount = store.microTasks.filter(t => t.goalId === goal.id).length
-          const doneCount = store.microTasks.filter(t => t.goalId === goal.id && t.status === 'completed').length
+          // Count what she's finished, not a percentage of the current batch. Goals
+          // top up with new steps, so a percentage would fall back down every time
+          // fresh steps arrive — reading as lost progress she never lost.
+          const done = stepsDone(goal.id, store.microTasks)
+          const active = isGoalActive(goal)
           return (
-            <motion.div key={goal.id} initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.05 * i }} className="bg-card border border-card-border rounded-2xl p-4">
-              <div className="flex items-center gap-3 mb-2">
-                <ProgressRing progress={goal.progressPct} size={44} strokeWidth={5} color={color}>
+            <motion.div key={goal.id} initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.05 * i }} className={`bg-card border border-card-border rounded-2xl p-4 ${active ? '' : 'opacity-60'}`}>
+              <div className="flex items-center gap-3">
+                <div className="h-11 w-11 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: color + '20' }}>
                   <GoalIcon size={16} style={{ color }} />
-                </ProgressRing>
+                </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="font-bold text-sm truncate">{goal.title}</h3>
-                  <p className="font-mono text-[10px] text-muted">{doneCount}/{taskCount} steps · {goal.progressPct}%</p>
+                  <p className="font-mono text-[10px] text-muted">
+                    {active
+                      ? `${done} ${done === 1 ? 'step' : 'steps'} done`
+                      : 'Done'}
+                  </p>
                 </div>
-              </div>
-              <div className="h-1.5 bg-muted-light rounded-full overflow-hidden">
-                <motion.div className="h-full rounded-full" style={{ backgroundColor: color }} initial={{ width: 0 }} animate={{ width: `${goal.progressPct}%` }} transition={{ duration: 0.8, delay: 0.2 + 0.05 * i }} />
               </div>
             </motion.div>
           )

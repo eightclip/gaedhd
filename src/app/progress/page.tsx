@@ -6,6 +6,7 @@ import { categoryColors } from '@/lib/mock-data'
 import { categoryIcon } from '@/lib/icons'
 import { ProgressRing } from '@/components/ProgressRing'
 import { useStore } from '@/lib/store'
+import { isGoalActive } from '@/lib/goals'
 import { computeMomentum } from '@/lib/momentum'
 
 export default function ProgressPage() {
@@ -88,7 +89,6 @@ export default function ProgressPage() {
         {store.goals.map((goal, i) => {
           const color = categoryColors[goal.category] || '#8B6F5E'
           const GoalIcon = categoryIcon(goal.category)
-          const taskCount = store.microTasks.filter(t => t.goalId === goal.id).length
           const doneCount = store.microTasks.filter(t => t.goalId === goal.id && t.status === 'completed').length
 
           return (
@@ -99,24 +99,19 @@ export default function ProgressPage() {
               transition={{ delay: 0.1 * i }}
               className="bg-card border border-card-border rounded-2xl p-4"
             >
-              <div className="flex items-center gap-3 mb-2">
+              {/* Steps finished, never a percentage: goals top up with fresh steps,
+                  so a bar would slide backwards on a day she made real progress. */}
+              <div className="flex items-center gap-3">
                 <GoalIcon size={20} style={{ color }} />
                 <div className="flex-1">
                   <h3 className="font-bold text-sm">{goal.title}</h3>
-                  <p className="text-xs text-muted">{doneCount}/{taskCount} steps</p>
+                  <p className="text-xs text-muted">
+                    {isGoalActive(goal) ? 'Keeping at it' : goal.doneReason || 'Done'}
+                  </p>
                 </div>
                 <span className="text-sm font-bold" style={{ color }}>
-                  {goal.progressPct}%
+                  {doneCount} {doneCount === 1 ? 'step' : 'steps'}
                 </span>
-              </div>
-              <div className="h-2 bg-muted-light rounded-full overflow-hidden">
-                <motion.div
-                  className="h-full rounded-full"
-                  style={{ backgroundColor: color }}
-                  initial={{ width: 0 }}
-                  animate={{ width: `${goal.progressPct}%` }}
-                  transition={{ duration: 0.8, delay: 0.2 + 0.1 * i }}
-                />
               </div>
             </motion.div>
           )

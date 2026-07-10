@@ -15,7 +15,7 @@ interface KioskData {
   rhythm: RhythmItem[]
   water: { count: number; goal: number }
   upNext: { title: string; goal: string; durationMin: number }[]
-  goals: { title: string; emoji: string; category: string; progressPct: number }[]
+  goals: { title: string; emoji: string; category: string; stepsDone: number }[]
   upcoming: { label: string; daysUntil: number; kind: string; years: number | null }[]
   dumpCount: number
   streak: number
@@ -282,15 +282,15 @@ export default function KioskPage() {
           <div className="mt-[0.7vw] grid grid-cols-2 gap-x-[1.6vw] gap-y-[0.7vw] min-h-0 overflow-hidden">
             {(data?.goals ?? []).slice(0, 4).map((g, i) => {
               const color = categoryColors[g.category] || '#8B6F5E'
+              // Steps finished, not a percentage. Goals top up with new steps, so a
+              // bar would shrink whenever fresh ones land — she'd read that as losing
+              // ground on a day she actually made progress.
               return (
-                <div key={i}>
-                  <div className="flex items-baseline justify-between">
-                    <span className="font-display text-[1.2vw] font-semibold truncate">{g.emoji} {g.title}</span>
-                    <span className="font-mono text-[0.9vw] text-muted shrink-0">{g.progressPct}%</span>
-                  </div>
-                  <div className="h-[0.6vw] rounded-full bg-muted-light overflow-hidden mt-[0.3vw]">
-                    <div className="h-full rounded-full" style={{ width: `${g.progressPct}%`, backgroundColor: color }} />
-                  </div>
+                <div key={i} className="flex items-baseline justify-between gap-[0.6vw]">
+                  <span className="font-display text-[1.2vw] font-semibold truncate">{g.emoji} {g.title}</span>
+                  <span className="font-mono text-[0.9vw] shrink-0" style={{ color }}>
+                    {g.stepsDone} {g.stepsDone === 1 ? 'step' : 'steps'}
+                  </span>
                 </div>
               )
             })}

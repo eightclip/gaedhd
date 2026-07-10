@@ -52,7 +52,7 @@ Set in Vercel → `gaedhd` project → Settings → Environment Variables. See `
 | `SUPABASE_URL` | yes | Supabase project URL. |
 | `SUPABASE_SERVICE_ROLE_KEY` | yes | Service-role key. Server-only; touches the RLS-locked tables. |
 | `GAEDHD_NOW_TOKEN` | yes | Shared device/bot secret. Kiosk, Telegram bot, presence bridge, Shortcuts, cron all present it. |
-| `ANTHROPIC_API_KEY` | yes | Claude, for capture / chat / decompose routes. |
+| `ANTHROPIC_API_KEY` | yes | Claude, for capture / chat / decompose / goal-next routes. Without it, goals stop generating new steps once their current ones run out (`/api/goal-next` falls back to two generic nudges and then stalls), so this is effectively required for goals to keep working. She can also paste a key in Settings, which takes precedence. |
 | `GAEDHD_NOW_EMAIL` | no | The single shared account email. Falls back to the first `ALLOWED_EMAILS` entry (`src/lib/now-auth.ts:13`). |
 | `CRON_SECRET` | no | Authorizes the Vercel cron that hits `/api/presence/reset` (`src/app/api/presence/reset/route.ts:16`). |
 | `GAEDHD_TZ` | no | Her timezone for server-side "her local hour/date". Default `America/Los_Angeles` (`src/lib/clock.ts:6`). |

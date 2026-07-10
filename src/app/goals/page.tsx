@@ -7,7 +7,7 @@ import { categoryColors } from '@/lib/mock-data'
 import { categoryIcon } from '@/lib/icons'
 import { Illo } from '@/components/Illo'
 import { ILLO } from '@/lib/illustrations'
-import { ProgressRing } from '@/components/ProgressRing'
+import { isGoalActive, stepsDone } from '@/lib/goals'
 import { useStore } from '@/lib/store'
 import type { GoalCategory, LifeArea, Goal, MicroTask } from '@/lib/types'
 
@@ -85,6 +85,11 @@ export default function GoalsPage() {
       })
       const data = await res.json()
       if (data.error) { closeAddForm(); return }
+
+      // A goal with no steps is born dead: it never appears in her day and never
+      // reads as finished. Don't create one. (It still tops up later if it ever runs
+      // dry, but there's no reason to start it empty.)
+      if (data.coaching === 'full' && !(data.microTasks?.length > 0)) { closeAddForm(); return }
 
       // Faded help: hand her a draft to finish instead of auto-filling her day.
       if (data.coaching && data.coaching !== 'full') {
@@ -483,14 +488,18 @@ export default function GoalsPage() {
       {/* Goal cards — finished goals sink to the bottom */}
       <div className="space-y-3 md:grid md:grid-cols-2 md:gap-4 md:space-y-0">
         {[...store.goals]
-          .sort((a, b) => (a.progressPct >= 100 ? 1 : 0) - (b.progressPct >= 100 ? 1 : 0))
+          // Finished goals sink to the bottom. "Finished" now means she or Claude
+          // actually closed it, not that a batch of steps ran out.
+          .sort((a, b) => (isGoalActive(a) ? 0 : 1) - (isGoalActive(b) ? 0 : 1))
           .map((goal) => {
           const color = categoryColors[goal.category] || '#8B6F5E'
           const GoalIcon = categoryIcon(goal.category)
-          const taskCount = store.microTasks.filter(t => t.goalId === goal.id).length
-          const doneCount = store.microTasks.filter(t => t.goalId === goal.id && t.status === 'completed').length
+          // Steps she has finished. Goals top up with fresh steps, so a "3/5" or a
+          // percentage would slide backwards every time new ones arrive. This only
+          // ever climbs.
+          const done = stepsDone(goal.id, store.microTasks)
           const isConfirmDelete = confirmDeleteId === goal.id
-          const isDone = goal.progressPct >= 100
+          const isDone = !isGoalActive(goal)
 
           return (
             <motion.div
@@ -499,9 +508,9 @@ export default function GoalsPage() {
               animate={{ opacity: 1, y: 0 }}
               className={`bg-card border border-card-border rounded-2xl p-4 flex items-center gap-4 ${isDone ? 'opacity-60' : ''}`}
             >
-              <ProgressRing progress={goal.progressPct} size={56} strokeWidth={6} color={color}>
+              <div className="h-14 w-14 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: color + '20' }}>
                 <GoalIcon size={20} style={{ color }} />
-              </ProgressRing>
+              </div>
 
               <div className="flex-1 min-w-0">
                 <h3 className="font-bold text-sm">{goal.title}</h3>
@@ -514,9 +523,13 @@ export default function GoalsPage() {
                     {goal.category}
                   </span>
                   <span className="text-[10px] text-muted">
-                    {doneCount}/{taskCount} steps
+                    {isDone ? 'Done' : `${done} ${done === 1 ? 'step' : 'steps'} done`}
                   </span>
                 </div>
+                {/* Claude's plain sentence when it recognised the goal was finished. */}
+                {isDone && goal.doneReason && (
+                  <p className="text-[10px] text-muted mt-1 italic">{goal.doneReason}</p>
+                )}
               </div>
 
               {/* Actions */}

@@ -64,6 +64,21 @@ export interface Goal {
   // false = steps are independent and can be sprinkled across the day in any order.
   // true/undefined = steps depend on each other; only the current one is available.
   sequential?: boolean
+  // When she (or Claude) declared this goal actually finished. THIS is what "done"
+  // means now — not progressPct.
+  //
+  // A goal used to be "done" the moment its last decomposed step was ticked, which
+  // silently retired ongoing goals like "get stronger" after five taps. Goals now
+  // top up with fresh steps instead (see /api/goal-next), so running out of steps
+  // means "ask for more", not "finished". Only doneAt closes a goal.
+  //
+  // Legacy goals sitting at progressPct 100 have no doneAt, so they come back to
+  // life and top up. The first top-up asks Claude, who closes the genuinely
+  // finished ones ("the kitchen is painted") and gives the rest their next steps.
+  doneAt?: string
+  // Why it was closed, when Claude was the one who decided. Shown to her, so it has
+  // to read like a plain sentence.
+  doneReason?: string
 }
 
 // ─── Micro-Tasks ────────────────────────────────────────────────

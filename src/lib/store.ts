@@ -5,6 +5,7 @@ import type { Goal, MicroTask, ParkingLotItem, FixedBlock, ImportantDate } from 
 import type { Ritual } from './rituals'
 import { DEFAULT_RITUALS } from './rituals'
 import { localDateStr } from './momentum'
+import { buildTopUpTasks, type IncomingStep } from './goals'
 import { goals as mockGoals, microTasks as mockTasks, parkingLotItems as mockParking } from './mock-data'
 
 // ─── Types ──────────────────────────────────────────────────────
@@ -781,6 +782,30 @@ export function useStore() {
     }))
   }, [])
 
+  // Append a fresh batch of steps to a goal that ran out of them. This is what keeps
+  // an ongoing goal ("get stronger") alive in her day instead of retiring it after
+  // five taps. Steps she's already seen are filtered out in buildTopUpTasks.
+  const topUpGoal = useCallback((goalId: string, incoming: IncomingStep[]) => {
+    setState(prev => {
+      const fresh = buildTopUpTasks(goalId, incoming, prev.microTasks, Date.now())
+      if (fresh.length === 0) return prev
+      return { ...prev, microTasks: [...fresh, ...prev.microTasks] }
+    })
+  }, [])
+
+  // Close a goal for real. `reason` is Claude's one-liner when it recognised a finite
+  // project is finished ("The kitchen is painted."); empty when she closed it herself.
+  const markGoalDone = useCallback((goalId: string, reason = '') => {
+    setState(prev => ({
+      ...prev,
+      goals: prev.goals.map(g =>
+        g.id === goalId
+          ? { ...g, doneAt: new Date().toISOString(), doneReason: reason || undefined, progressPct: 100 }
+          : g
+      ),
+    }))
+  }, [])
+
   // She knocked out the whole goal in one swoop. Mark every remaining step done,
   // which pulls them out of the day's pool so the rest of the time refills around
   // what's left. Recoverable via reopenGoal.
@@ -798,7 +823,9 @@ export function useStore() {
       return {
         ...prev,
         microTasks: updatedTasks,
-        goals: prev.goals.map(g => g.id === goalId ? { ...g, progressPct: 100 } : g),
+        // doneAt is what actually closes it now — without this the goal would just
+        // top up with new steps tomorrow.
+        goals: prev.goals.map(g => g.id === goalId ? { ...g, doneAt: now, progressPct: 100 } : g),
         tasksCompletedToday: prev.tasksCompletedToday + newlyDone,
         activeDays: newlyDone > 0 ? recordActiveDay(prev.activeDays) : prev.activeDays,
       }
@@ -820,7 +847,10 @@ export function useStore() {
       return {
         ...prev,
         microTasks: updatedTasks,
-        goals: prev.goals.map(g => g.id === goalId ? { ...g, progressPct: 0 } : g),
+        // Clear doneAt too, or the goal stays closed and never flows back into her day.
+        goals: prev.goals.map(g =>
+          g.id === goalId ? { ...g, progressPct: 0, doneAt: undefined, doneReason: undefined } : g
+        ),
         tasksCompletedToday: Math.max(0, prev.tasksCompletedToday - reverted),
       }
     })
@@ -1032,6 +1062,8 @@ export function useStore() {
     deleteGoal,
     completeGoal,
     reopenGoal,
+    topUpGoal,
+    markGoalDone,
     updateSettings,
     addCalendarSource,
     removeCalendarSource,

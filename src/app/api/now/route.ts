@@ -9,6 +9,7 @@ import { currentNextActions, availableActions } from '@/lib/schedule'
 import { upcomingDates } from '@/lib/dates'
 import { fetchEventsForSources } from '@/lib/ical'
 import { nowTokenValid } from '@/lib/now-auth'
+import { isGoalActive, stepsDone } from '@/lib/goals'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -99,11 +100,19 @@ export async function GET(request: Request) {
   const pool = availableActions(goals, microTasks)
   const upNext = pool.slice(0, 5).map(a => ({ title: a.microTask.title, goal: a.goal.title, durationMin: a.microTask.durationMin }))
 
-  // Her goals with progress, highest priority first.
-  const goalsOut = [...goals]
+  // Her live goals, highest priority first. Closed goals are dropped, and we send the
+  // count of steps she's finished rather than a percentage: goals top up with fresh
+  // steps, so a percentage would slide backwards and read as lost ground.
+  const goalsOut = goals
+    .filter(isGoalActive)
     .sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0))
     .slice(0, 6)
-    .map(g => ({ title: g.title, emoji: g.emoji, category: g.category, progressPct: g.progressPct }))
+    .map(g => ({
+      title: g.title,
+      emoji: g.emoji,
+      category: g.category,
+      stepsDone: stepsDone(g.id, microTasks),
+    }))
 
   // Birthdays/anniversaries in the next two weeks. Anchor to her local date, or
   // "days until" is off by one all evening (the UTC date is already tomorrow).
