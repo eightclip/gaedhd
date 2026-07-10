@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { auth } from '@/auth'
 
 // Reads a photo of a list or note she wrote and pulls out the individual items.
 // She is a list-writer; this is the "snap a photo of my handwriting" capture door.
@@ -28,6 +29,12 @@ function parseImage(input: string): { mediaType: string; data: string } | null {
 }
 
 export async function POST(request: NextRequest) {
+  // Explicit gate: middleware auth() fails open (proceeds to the route) if it throws,
+  // so it's defense-in-depth only. This route spends the server ANTHROPIC_API_KEY, so
+  // check the session here before parsing the body or reaching out to Claude.
+  const session = await auth()
+  if (!session?.user?.email) return Response.json({ error: 'unauthorized' }, { status: 401 })
+
   const { image, mediaType, apiKey, userContext } = await request.json()
 
   if (!image || typeof image !== 'string') {

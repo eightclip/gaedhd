@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { auth } from '@/auth'
 
 const SYSTEM_PROMPT = `You are the GaeDHD assistant — a warm, encouraging AI that helps people with ADHD break big goals into tiny, doable micro-tasks.
 
@@ -33,6 +34,12 @@ EXAMPLES of good micro-tasks:
 If the user is just chatting or asking questions (not stating a goal), respond naturally without the <goal> block. If they seem overwhelmed, suggest the "I can't even" approach — give them the absolute tiniest possible action.`
 
 export async function POST(request: NextRequest) {
+  // Explicit gate: middleware auth() fails open (proceeds to the route) if it throws,
+  // so it's defense-in-depth only. This route spends the server ANTHROPIC_API_KEY, so
+  // check the session here before parsing the body or reaching out to Claude.
+  const session = await auth()
+  if (!session?.user?.email) return Response.json({ error: 'unauthorized' }, { status: 401 })
+
   const { messages, apiKey, userContext } = await request.json()
 
   if (!messages || !Array.isArray(messages)) {
