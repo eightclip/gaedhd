@@ -370,13 +370,17 @@ The office TV shows `https://gaedhd.jmj.fyi/kiosk` full-screen, all day. **Tizen
 1. Plug a **Fire TV Stick** into the office TV's HDMI. Set the TV's input to that HDMI port.
 2. On the Fire TV, install **Fully Kiosk Browser** (search the Amazon Appstore; "Fully Kiosk Browser & Lockdown" has a Fire TV build).
 3. In Fully Kiosk settings:
-   - **Start URL:** `https://gaedhd.jmj.fyi/kiosk`
+   - **Start URL:** `https://gaedhd.jmj.fyi/kiosk?token=<GAEDHD_NOW_TOKEN>` — the token
+     **must** be in the URL. The page reads it from the query string only (no
+     localStorage fallback), so a token-less start URL shows "Kiosk needs a token" forever.
    - **Launch on Boot:** ON
    - **Restart on Crash / Watchdog:** ON
    - **Screen Always On while in app:** ON
    - **Fullscreen / hide system bars:** ON
 4. (Optional but tidy) Set Fully Kiosk as the **default launcher** behavior so a power-on lands straight on the dashboard.
-5. The kiosk page polls `GET /api/now` itself to stay current — no per-device token wiring needed beyond what the page already does.
+5. Once launched with the token in the URL, the kiosk page polls `GET /api/now` itself to
+   stay current — the token survives the page's own 4-hourly self-reloads because it lives
+   in the URL.
 
 > Why Fire TV over the Pi here: the Stick is cheap, silent, HDMI-CEC aware, and Fully Kiosk on Fire OS is purpose-built for exactly this.
 
@@ -394,10 +398,13 @@ cat > ~/.config/autostart/gaedhd-kiosk.desktop <<'EOF'
 [Desktop Entry]
 Type=Application
 Name=GaeDHD Kiosk
-Exec=chromium-browser --kiosk --noerrdialogs --disable-infobars --incognito --check-for-update-interval=31536000 https://gaedhd.jmj.fyi/kiosk
+Exec=chromium-browser --kiosk --noerrdialogs --disable-infobars --incognito --check-for-update-interval=31536000 https://gaedhd.jmj.fyi/kiosk?token=PUT_THE_REAL_TOKEN_HERE
 X-GNOME-Autostart-enabled=true
 EOF
 ```
+
+> The `?token=` is required (and `--incognito` means nothing persists between boots, so
+> it can only live in the URL). This is how the studio Pi is actually configured.
 
 `unclutter` hides the mouse pointer. Reboot to test.
 
