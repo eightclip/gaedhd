@@ -90,6 +90,7 @@ export default function ProgressPage() {
           const color = categoryColors[goal.category] || '#8B6F5E'
           const GoalIcon = categoryIcon(goal.category)
           const doneCount = store.microTasks.filter(t => t.goalId === goal.id && t.status === 'completed').length
+          const pendingCount = store.microTasks.filter(t => t.goalId === goal.id && t.status === 'pending').length
 
           return (
             <motion.div
@@ -99,18 +100,29 @@ export default function ProgressPage() {
               transition={{ delay: 0.1 * i }}
               className="bg-card border border-card-border rounded-2xl p-4"
             >
-              {/* Steps finished, never a percentage: goals top up with fresh steps,
-                  so a bar would slide backwards on a day she made real progress. */}
+              {/* Never a percentage: goals top up with fresh steps, so a bar would
+                  slide backwards on a day she made real progress. But "N steps"
+                  counting only what's DONE made a goal with 5 steps waiting read
+                  "0 steps" — as if nothing had happened. Lead with what's ready
+                  for her; keep what she's finished as the quieter second line. */}
               <div className="flex items-center gap-3">
                 <GoalIcon size={20} style={{ color }} />
                 <div className="flex-1">
                   <h3 className="font-bold text-sm">{goal.title}</h3>
                   <p className="text-xs text-muted">
-                    {isGoalActive(goal) ? 'Keeping at it' : goal.doneReason || 'Done'}
+                    {!isGoalActive(goal)
+                      ? goal.doneReason || 'Done'
+                      : doneCount > 0
+                        ? `${doneCount} ${doneCount === 1 ? 'step' : 'steps'} done`
+                        : 'Not started yet'}
                   </p>
                 </div>
-                <span className="text-sm font-bold" style={{ color }}>
-                  {doneCount} {doneCount === 1 ? 'step' : 'steps'}
+                <span className="text-sm font-bold text-right" style={{ color }}>
+                  {!isGoalActive(goal)
+                    ? 'Done'
+                    : pendingCount > 0
+                      ? `${pendingCount} ready`
+                      : 'Nothing queued'}
                 </span>
               </div>
             </motion.div>

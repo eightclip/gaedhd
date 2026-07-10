@@ -475,6 +475,7 @@ export function TodayView() {
           // top up with new steps, so a percentage would fall back down every time
           // fresh steps arrive — reading as lost progress she never lost.
           const done = stepsDone(goal.id, store.microTasks)
+          const pending = pendingTasks(goal.id, store.microTasks).length
           const active = isGoalActive(goal)
           return (
             <motion.div key={goal.id} initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.05 * i }} className={`bg-card border border-card-border rounded-2xl p-4 ${active ? '' : 'opacity-60'}`}>
@@ -484,10 +485,14 @@ export function TodayView() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="font-bold text-sm truncate">{goal.title}</h3>
+                  {/* What's waiting for her first — a topped-up goal used to read
+                      "0 steps done" and look like nothing had happened. */}
                   <p className="font-mono text-[10px] text-muted">
-                    {active
-                      ? `${done} ${done === 1 ? 'step' : 'steps'} done`
-                      : 'Done'}
+                    {!active
+                      ? 'Done'
+                      : pending > 0
+                        ? `${pending} ready${done > 0 ? ` · ${done} done` : ''}`
+                        : done > 0 ? `${done} ${done === 1 ? 'step' : 'steps'} done` : 'Not started yet'}
                   </p>
                 </div>
               </div>

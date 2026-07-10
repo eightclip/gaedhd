@@ -7,7 +7,7 @@ import { categoryColors } from '@/lib/mock-data'
 import { categoryIcon } from '@/lib/icons'
 import { Illo } from '@/components/Illo'
 import { ILLO } from '@/lib/illustrations'
-import { isGoalActive, stepsDone } from '@/lib/goals'
+import { isGoalActive, stepsDone, pendingTasks } from '@/lib/goals'
 import { useStore } from '@/lib/store'
 import type { GoalCategory, LifeArea, Goal, MicroTask } from '@/lib/types'
 
@@ -498,6 +498,7 @@ export default function GoalsPage() {
           // percentage would slide backwards every time new ones arrive. This only
           // ever climbs.
           const done = stepsDone(goal.id, store.microTasks)
+          const pending = pendingTasks(goal.id, store.microTasks).length
           const isConfirmDelete = confirmDeleteId === goal.id
           const isDone = !isGoalActive(goal)
 
@@ -522,8 +523,14 @@ export default function GoalsPage() {
                   >
                     {goal.category}
                   </span>
+                  {/* Lead with what's waiting for her. Counting only completed steps
+                      made a topped-up goal read "0 steps done" and look dead. */}
                   <span className="text-[10px] text-muted">
-                    {isDone ? 'Done' : `${done} ${done === 1 ? 'step' : 'steps'} done`}
+                    {isDone
+                      ? 'Done'
+                      : pending > 0
+                        ? `${pending} ready${done > 0 ? ` · ${done} done` : ''}`
+                        : done > 0 ? `${done} ${done === 1 ? 'step' : 'steps'} done` : 'Not started yet'}
                   </span>
                 </div>
                 {/* Claude's plain sentence when it recognised the goal was finished. */}

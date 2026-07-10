@@ -26,8 +26,21 @@ FIRST decide: is this goal actually finished?
 - Set "goalComplete": false for any ONGOING goal that has no natural end — getting stronger,
   learning a language, growing a business, keeping a home, a creative practice. These NEVER
   complete just because some steps were done. Give her the next steps.
+
+- NEVER set "goalComplete": true for a goal that recurs, however finished today's instance
+  looks. Doing one instance is not finishing the goal. This is absolute, and it covers:
+    * anything medical or health-related — medication, pills, allergy medicine, vitamins,
+      supplements, appointments she attends regularly, therapy, stretching, exercise
+    * anything with a rhythm in the title or the steps — "nightly", "daily", "every",
+      "each", "weekly", "morning", "before bed", "when I'm in the <room>"
+    * chores and upkeep that come back — laundry, dishes, the dishwasher, tidying, plants
+    * anything phrased as a standing habit or a reminder to herself
+  "Take allergy medicine" is NOT complete because she took it once. It is complete never.
+  Give her the next steps instead.
+
 - When in doubt, choose false and give her more steps. Wrongly closing a goal she still
-  cares about is much worse than offering one more step.
+  cares about is far worse than offering her one more step. She can always close a goal
+  herself; she cannot easily notice one that quietly disappeared.
 
 If not complete, produce 3-5 NEW steps that genuinely move the goal forward FROM WHERE SHE IS:
 - Do NOT repeat, restate, or lightly reword anything in the completed list. Look at what she
