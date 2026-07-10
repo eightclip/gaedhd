@@ -32,7 +32,7 @@ import type { CalendarEvent, TimelineItem } from '@/lib/types'
 import { useStore } from '@/lib/store'
 import { computeMomentum, localDateStr } from '@/lib/momentum'
 import { computeGaps, slotTasks, currentNextActions, availableActions, materializeFixedBlocks, ymd } from '@/lib/schedule'
-import { isGoalActive, stepsDone } from '@/lib/goals'
+import { isGoalActive, stepsDone, pendingTasks } from '@/lib/goals'
 import { useGoalTopUp } from '@/lib/useGoalTopUp'
 
 // Quick timed breaks. Snack/bathroom prompt a water refill since she's already up.
