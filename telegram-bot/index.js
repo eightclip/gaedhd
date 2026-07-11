@@ -197,9 +197,9 @@ bot.command("next", async (ctx) => {
 
     if (data.task) {
       const { emoji, title, durationMin, goal } = data.task;
-      lines.push(`*${emoji ?? ""} ${title}*`);
+      lines.push(`*${emoji ?? ""} ${escapeMd(title)}*`);
       if (durationMin) lines.push(`${durationMin} min`);
-      if (goal) lines.push(`Goal: ${goal}`);
+      if (goal) lines.push(`Goal: ${escapeMd(goal)}`);
     } else {
       lines.push("You're all clear — no active task right now.");
     }
@@ -208,7 +208,7 @@ bot.command("next", async (ctx) => {
       lines.push("");
       lines.push("*Rituals due:*");
       for (const r of data.ritualsDue) {
-        lines.push(`${r.emoji ?? "•"} ${r.title}`);
+        lines.push(`${r.emoji ?? "•"} ${escapeMd(r.title)}`);
       }
     }
 
@@ -235,7 +235,7 @@ bot.command("today", async (ctx) => {
     // Current task
     if (data.task) {
       const { emoji, title, durationMin } = data.task;
-      lines.push(`*Now:* ${emoji ?? ""} ${title}${durationMin ? ` (${durationMin} min)` : ""}`);
+      lines.push(`*Now:* ${emoji ?? ""} ${escapeMd(title)}${durationMin ? ` (${durationMin} min)` : ""}`);
     } else {
       lines.push("*Now:* All clear");
     }
@@ -251,7 +251,7 @@ bot.command("today", async (ctx) => {
     // Next meeting
     const upcoming = nextEvent(data.events ?? []);
     if (upcoming) {
-      lines.push(`*Next meeting:* ${upcoming.title} at ${upcoming.startTime}`);
+      lines.push(`*Next meeting:* ${escapeMd(upcoming.title)} at ${formatEventTime(upcoming.startTime)}`);
     }
 
     if (data.pendingCount > 0) {
@@ -287,7 +287,7 @@ bot.command("overwhelmed", async (ctx) => {
     const lines = [opener, ""];
     if (tiny) {
       lines.push(`*Just this one thing:*`);
-      lines.push(`${tiny.title}${tiny.durationMin ? ` — ${tiny.durationMin} min` : ""}`);
+      lines.push(`${escapeMd(tiny.title)}${tiny.durationMin ? ` — ${tiny.durationMin} min` : ""}`);
       lines.push("");
       lines.push("Do that, then stop. The rest can wait. 💛");
     } else {
@@ -316,10 +316,10 @@ bot.command("decide", async (ctx) => {
     if (pool.length) {
       lines.push("*Your options:*");
       for (const t of pool.slice(0, 5)) {
-        lines.push(`• ${t.title}${t.durationMin ? ` (${t.durationMin} min)` : ""}`);
+        lines.push(`• ${escapeMd(t.title)}${t.durationMin ? ` (${t.durationMin} min)` : ""}`);
       }
     } else if (data.task) {
-      lines.push(`Honestly? There's really only one thing: *${data.task.title}*. Start there.`);
+      lines.push(`Honestly? There's really only one thing: *${escapeMd(data.task.title)}*. Start there.`);
     } else {
       lines.push("Nothing's even pending — so this one's easy. Go rest. 💛");
     }
@@ -380,7 +380,9 @@ bot.command("usage", async (ctx) => {
     for (const [key, label] of Object.entries(USAGE_LABELS)) {
       const n = u[key] || 0;
       if (n > 0) any = true;
-      lines.push(`${label}: *${n}*`);
+      // label is static; n comes from the API — escape it so an unexpected
+      // value can't break Markdown parsing and swallow the readout.
+      lines.push(`${label}: *${escapeMd(n)}*`);
     }
     if (!any) lines.push("", "_Nothing tapped yet — give it a few days, then check back._");
     await ctx.reply(lines.join("\n"), { parse_mode: "Markdown" });
@@ -603,15 +605,23 @@ if (MORNING_PROMPT_ENABLED) {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Returns true if the current hour is inside the active (non-quiet) window. */
+/**
+ * Returns true if the current hour is inside the active (non-quiet) window.
+ * `new Date().getHours()` reads the container clock; docker-compose sets
+ * TZ=America/Los_Angeles so that clock matches her wall time (see the compose
+ * file's comment). With defaults QUIET_START=21 / QUIET_END=8 the quiet window
+ * wraps midnight, so active = 08:00–21:00 local.
+ */
 function isActiveHour() {
   const hour = new Date().getHours();
   if (QUIET_START > QUIET_END) {
-    // Wraps midnight: quiet from e.g. 21 to 08
+    // Quiet window wraps midnight (e.g. 21 → 08): active is the daytime slice
+    // BETWEEN quiet_end and quiet_start.
     return hour >= QUIET_END && hour < QUIET_START;
   } else {
-    // Doesn't wrap midnight
-    return hour >= QUIET_END && hour < QUIET_START;
+    // Quiet window does NOT wrap midnight (e.g. quiet 08 → 21): active is
+    // everything OUTSIDE [QUIET_START, QUIET_END) — early morning + late night.
+    return hour < QUIET_START || hour >= QUIET_END;
   }
 }
 
@@ -875,7 +885,7 @@ async function downloadTelegramPhoto(fileId) {
 }
 
 /**
- * Sends an image (base64 JPEG) to Anthropic claude-sonnet-4-20250514 vision
+ * Sends an image (base64 JPEG) to Anthropic vision (MODEL above)
  * and extracts an array of { text, kind } to-do items.
  */
 async function extractTodosFromImage(imageBase64) {
@@ -941,14 +951,44 @@ Rules:
 }
 
 /**
- * Given an array of calendar events, returns the next one that hasn't ended yet.
- * Events are expected to have string startTime/endTime fields. Returns null if none.
+ * Given an array of calendar events, returns the earliest one that hasn't ended
+ * yet. Events are expected to have ISO string startTime/endTime fields. Skips
+ * anything already over, so at 6pm she never sees a meeting that ended at 9am.
+ * Returns null if nothing is still upcoming.
  */
 function nextEvent(events) {
-  if (!events.length) return null;
-  // We can't parse arbitrary time strings without a timezone reference,
-  // so just return the first event in the array (the API is expected to sort them).
-  return events[0] ?? null;
+  if (!events?.length) return null;
+  const now = Date.now();
+  const upcoming = events
+    .filter((e) => {
+      const end = Date.parse(e.endTime ?? e.startTime);
+      return Number.isFinite(end) && end > now;
+    })
+    .sort((a, b) => Date.parse(a.startTime) - Date.parse(b.startTime));
+  return upcoming[0] ?? null;
+}
+
+// Her wall-clock timezone. Falls back to Pacific if TZ isn't set in the env.
+const DISPLAY_TZ = process.env.TZ || "America/Los_Angeles";
+
+/** Formats an ISO timestamp as a human clock time in her timezone, e.g. "9:00 AM". */
+function formatEventTime(iso) {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return String(iso ?? "");
+  return new Date(t).toLocaleTimeString("en-US", {
+    timeZone: DISPLAY_TZ,
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+/**
+ * Escapes the characters Telegram's legacy Markdown parser treats as syntax, so
+ * a task titled `e_mail_ Sara` or one containing `*`/`[` doesn't make the whole
+ * message fail to send (which would swallow her answer behind a fake error).
+ */
+function escapeMd(s) {
+  return String(s ?? "").replace(/([_*`\[])/g, "\\$1");
 }
 
 // ---------------------------------------------------------------------------

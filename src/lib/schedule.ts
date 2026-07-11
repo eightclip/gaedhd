@@ -1,4 +1,5 @@
 import type { CalendarEvent, ScheduleGap, ScheduledTask, TaskWithGoal, GapSize, Goal, MicroTask, FixedBlock } from './types'
+import { isGoalActive } from './goals'
 
 // Gym is one hour, with travel before and after. These are her slots.
 export const GYM_SLOTS = [
@@ -61,6 +62,7 @@ export function gymConflicts(hour: number, min: number, events: CalendarEvent[],
 // (repeats day to day) until she completes it, then the next step surfaces.
 export function currentNextActions(goals: Goal[], microTasks: MicroTask[]): TaskWithGoal[] {
   return goals
+    .filter(isGoalActive) // a closed goal shouldn't offer steps she left unticked
     .map((goal): TaskWithGoal | null => {
       const next = microTasks
         .filter(t => t.goalId === goal.id && t.status === 'pending')
@@ -77,7 +79,7 @@ export function currentNextActions(goals: Goal[], microTasks: MicroTask[]): Task
 // so dependency chains stay in order. This is the pool the day gets filled from.
 export function availableActions(goals: Goal[], microTasks: MicroTask[]): TaskWithGoal[] {
   const pool: TaskWithGoal[] = []
-  for (const goal of goals) {
+  for (const goal of goals.filter(isGoalActive)) {
     const pending = microTasks
       .filter(t => t.goalId === goal.id && t.status === 'pending')
       .sort((a, b) => a.sequenceOrder - b.sequenceOrder)

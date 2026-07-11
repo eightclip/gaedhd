@@ -6,6 +6,7 @@ import { categoryColors } from '@/lib/mock-data'
 import { categoryIcon } from '@/lib/icons'
 import { ProgressRing } from '@/components/ProgressRing'
 import { useStore } from '@/lib/store'
+import { isGoalActive } from '@/lib/goals'
 import { computeMomentum } from '@/lib/momentum'
 
 export default function ProgressPage() {
@@ -49,7 +50,8 @@ export default function ProgressPage() {
       <div className="grid grid-cols-3 gap-3 mb-10">
         <div className="rounded-[1.5rem] p-5 text-center" style={{ backgroundColor: 'var(--today-tint)' }}>
           <p className="font-display text-4xl font-extrabold leading-none text-today-ink">{momentum.streak}</p>
-          <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mt-2">{momentum.weekCount}/7 this week</p>
+          <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mt-2">day streak</p>
+          <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mt-1">{momentum.weekCount}/7 this week</p>
         </div>
         <div className="rounded-[1.5rem] p-5 text-center bg-success-soft">
           <p className="font-display text-4xl font-extrabold leading-none text-success">{completedTasks}</p>
@@ -87,8 +89,8 @@ export default function ProgressPage() {
         {store.goals.map((goal, i) => {
           const color = categoryColors[goal.category] || '#8B6F5E'
           const GoalIcon = categoryIcon(goal.category)
-          const taskCount = store.microTasks.filter(t => t.goalId === goal.id).length
           const doneCount = store.microTasks.filter(t => t.goalId === goal.id && t.status === 'completed').length
+          const pendingCount = store.microTasks.filter(t => t.goalId === goal.id && t.status === 'pending').length
 
           return (
             <motion.div
@@ -98,24 +100,30 @@ export default function ProgressPage() {
               transition={{ delay: 0.1 * i }}
               className="bg-card border border-card-border rounded-2xl p-4"
             >
-              <div className="flex items-center gap-3 mb-2">
+              {/* Never a percentage: goals top up with fresh steps, so a bar would
+                  slide backwards on a day she made real progress. But "N steps"
+                  counting only what's DONE made a goal with 5 steps waiting read
+                  "0 steps" — as if nothing had happened. Lead with what's ready
+                  for her; keep what she's finished as the quieter second line. */}
+              <div className="flex items-center gap-3">
                 <GoalIcon size={20} style={{ color }} />
                 <div className="flex-1">
                   <h3 className="font-bold text-sm">{goal.title}</h3>
-                  <p className="text-xs text-muted">{doneCount}/{taskCount} steps</p>
+                  <p className="text-xs text-muted">
+                    {!isGoalActive(goal)
+                      ? goal.doneReason || 'Done'
+                      : doneCount > 0
+                        ? `${doneCount} ${doneCount === 1 ? 'step' : 'steps'} done`
+                        : 'Not started yet'}
+                  </p>
                 </div>
-                <span className="text-sm font-bold" style={{ color }}>
-                  {goal.progressPct}%
+                <span className="text-sm font-bold text-right" style={{ color }}>
+                  {!isGoalActive(goal)
+                    ? 'Done'
+                    : pendingCount > 0
+                      ? `${pendingCount} ready`
+                      : 'Nothing queued'}
                 </span>
-              </div>
-              <div className="h-2 bg-muted-light rounded-full overflow-hidden">
-                <motion.div
-                  className="h-full rounded-full"
-                  style={{ backgroundColor: color }}
-                  initial={{ width: 0 }}
-                  animate={{ width: `${goal.progressPct}%` }}
-                  transition={{ duration: 0.8, delay: 0.2 + 0.1 * i }}
-                />
               </div>
             </motion.div>
           )

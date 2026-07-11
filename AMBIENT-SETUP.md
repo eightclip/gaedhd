@@ -165,7 +165,7 @@ ESPresense auto-discovers iBeacons. Each node publishes per-beacon distance to t
 espresense/devices/iBeacon:<uuid>-<major>-<minor>/<room>
 ```
 
-To give it a friendly name and confirm it's tracked, open any node's web UI → **Devices**, find the iBeacon entry, and give it an alias like `her_beacon`. From then on the topic becomes:
+To give it a friendly name and confirm it's tracked, open any node's web UI → **Devices**, find the iBeacon entry, and give it an alias like `her_beacon`. (**Note:** the shipped `presence-bridge/` follows `gaes_beacon` by default — its `DEVICE_ID`. Either alias the beacon `gaes_beacon` here, or set `DEVICE_ID=her_beacon` in the bridge's `.env`. They must match.) From then on the topic becomes:
 
 ```
 espresense/devices/her_beacon/<room>     # e.g. .../her_beacon/studio
@@ -198,7 +198,7 @@ If HA runs as a full **Home Assistant OS** VM (you see the **Settings → Add-on
 
 1. In HA: **Settings → Add-ons → Add-on Store**.
 2. Search **Mosquitto broker** → **Install** → **Start**. Enable **Start on boot** and **Watchdog**.
-3. Create a broker login. The clean way: **Settings → People → Users → Add user** (e.g. username `mqtt`, a strong password) — the Mosquitto add-on authenticates against HA users automatically.
+3. Create a broker login. The clean way: **Settings → People → Users → Add user** (e.g. username `mqtt`, a strong password) — the Mosquitto add-on authenticates against HA users automatically. (**Note:** the shipped `presence-bridge/` defaults its broker user to `gaedhd` — its `MQTT_USER`. Either name this user `gaedhd`, or set `MQTT_USER=mqtt` in the bridge's `.env` to match whatever you create here.)
 4. HA usually auto-discovers the broker. If prompted, accept the **MQTT integration** (**Settings → Devices & Services → MQTT**) using `core-mosquitto` as host, port `1883`, and that user/password.
 5. The broker is reachable from the ESP32 nodes at **the QNAP/VM's LAN IP, port 1883**. Use that IP (not `core-mosquitto`, which only resolves inside HA) in each ESPresense node's MQTT settings.
 
@@ -258,7 +258,28 @@ Walk around with the beacon. You should see a stream of `espresense/devices/her_
 
 ## 4. Home Assistant: nearest room → /api/here
 
+> **What actually ships is the `presence-bridge/` container, not this Home Assistant path.**
+> The repo includes a small Node service (`presence-bridge/`, deployed to the QNAP via
+> `presence-bridge/deploy.sh`) that subscribes to the beacon's MQTT topics directly, picks
+> the nearest room itself, and POSTs to **`/api/enter`** (which also fires the room nudge) —
+> not `/api/here`. It needs **no Home Assistant at all**. If you're running the bridge, skip
+> this section; see `presence-bridge/README.md`. Two differences to know about:
+> - The bridge POSTs `/api/enter` (presence **plus** a cooldowned room nudge). `/api/here`
+>   below only sets presence, silently. Both endpoints exist and both work.
+> - The bridge's defaults differ from this guide's example names — see the naming note below.
+>   Reconcile them in one direction or the other; don't mix.
+>
+> This Home Assistant route is kept as a documented alternative (e.g. if you'd rather HA own
+> the presence logic). Use one or the other, not both pointing at the same room signal.
+
 Two pieces: (1) HA derives the beacon's **nearest room** from the ESPresense data, and (2) an automation POSTs that room to `/api/here` whenever it changes.
+
+> **Naming — the shipped bridge vs. this guide's examples.** This guide aliases the beacon
+> `her_beacon` and creates an MQTT user `mqtt`. The shipped `presence-bridge/` instead
+> defaults to beacon `gaes_beacon` (`DEVICE_ID`) and MQTT user `gaedhd` (`MQTT_USER`). Pick
+> one convention and make it consistent everywhere: either alias the beacon / name the MQTT
+> user to match this guide and override `DEVICE_ID` / `MQTT_USER` in the bridge's `.env`, or
+> keep the bridge defaults and use `gaes_beacon` / `gaedhd` in ESPresense and Mosquitto.
 
 ### 4.1 Get the nearest room into HA
 
@@ -363,24 +384,20 @@ Reload automations (**Developer Tools → YAML → Reload Automations**) and wal
 
 ## 5. Samsung TV Office Kiosk
 
-The office TV shows `https://gaedhd.jmj.fyi/kiosk` full-screen, all day. **Tizen (Samsung's built-in OS) cannot reliably run a 24/7 fullscreen kiosk web page** — its browser sleeps, drops the app, and has no real auto-start. So we drive the screen with an external device and use HA only for power scheduling.
+The office TV shows `https://gaedhd.jmj.fyi/kiosk?token=<GAEDHD_NOW_TOKEN>` full-screen, all day. **The `?token=` is required** — the kiosk page hard-requires it (`src/app/kiosk/page.tsx`); without it (or with a token the server rejects) she just sees a "not set up" screen. **Tizen (Samsung's built-in OS) cannot reliably run a 24/7 fullscreen kiosk web page** — its browser sleeps, drops the app, and has no real auto-start. So we drive the screen with an external device and use HA only for power scheduling.
 
 ### 5.1 Recommended: Fire TV Stick + Fully Kiosk Browser
 
 1. Plug a **Fire TV Stick** into the office TV's HDMI. Set the TV's input to that HDMI port.
 2. On the Fire TV, install **Fully Kiosk Browser** (search the Amazon Appstore; "Fully Kiosk Browser & Lockdown" has a Fire TV build).
 3. In Fully Kiosk settings:
-   - **Start URL:** `https://gaedhd.jmj.fyi/kiosk?token=<GAEDHD_NOW_TOKEN>` — the token
-     **must** be in the URL. The page reads it from the query string only (no
-     localStorage fallback), so a token-less start URL shows "Kiosk needs a token" forever.
+   - **Start URL:** `https://gaedhd.jmj.fyi/kiosk?token=<GAEDHD_NOW_TOKEN>` (the token is required)
    - **Launch on Boot:** ON
    - **Restart on Crash / Watchdog:** ON
    - **Screen Always On while in app:** ON
    - **Fullscreen / hide system bars:** ON
 4. (Optional but tidy) Set Fully Kiosk as the **default launcher** behavior so a power-on lands straight on the dashboard.
-5. Once launched with the token in the URL, the kiosk page polls `GET /api/now` itself to
-   stay current — the token survives the page's own 4-hourly self-reloads because it lives
-   in the URL.
+5. The kiosk page polls `GET /api/now` itself to stay current, using the `token` from its own URL — so the `?token=<GAEDHD_NOW_TOKEN>` in the Start URL is what authenticates it. Get that one URL right and there's nothing else to wire per device.
 
 > Why Fire TV over the Pi here: the Stick is cheap, silent, HDMI-CEC aware, and Fully Kiosk on Fire OS is purpose-built for exactly this.
 
@@ -398,7 +415,7 @@ cat > ~/.config/autostart/gaedhd-kiosk.desktop <<'EOF'
 [Desktop Entry]
 Type=Application
 Name=GaeDHD Kiosk
-Exec=chromium-browser --kiosk --noerrdialogs --disable-infobars --incognito --check-for-update-interval=31536000 https://gaedhd.jmj.fyi/kiosk?token=PUT_THE_REAL_TOKEN_HERE
+Exec=chromium-browser --kiosk --noerrdialogs --disable-infobars --incognito --check-for-update-interval=31536000 https://gaedhd.jmj.fyi/kiosk?token=<GAEDHD_NOW_TOKEN>
 X-GNOME-Autostart-enabled=true
 EOF
 ```

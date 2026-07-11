@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Check, SkipForward, Clock, Target, Pause, Zap } from 'lucide-react'
 import type { TaskWithGoal } from '@/lib/types'
@@ -27,7 +27,9 @@ export function JustDoThisCard({ tasks, onComplete, onSkip, onPause, onEvent }: 
   // Consecutive skips without a completion. On the 2nd in a row we intercept with
   // a gentle reframe + a tiny-start offer instead of just letting her bounce off
   // the task — targets the ADHD avoidance loop / "I can't do this" thought.
-  const [skipRun, setSkipRun] = useState(0)
+  // A ref, not state: a skip rotates to the next task, and if this reset on every
+  // task change the count could never reach 2 and the reframe would be unreachable.
+  const skipRunRef = useRef(0)
   const [reframe, setReframe] = useState(false)
   // Tiny-first-step: shrink the entry to 2 minutes. Lowering activation energy to
   // start matters more than shrinking the whole task.
@@ -42,7 +44,8 @@ export function JustDoThisCard({ tasks, onComplete, onSkip, onPause, onEvent }: 
     if (currentTask) {
       setTinyMode(false)
       setReframe(false)
-      setSkipRun(0) // consecutive skips are per-task; don't let them carry over
+      // NB: don't reset skipRunRef here — a skip rotates the task, and consecutive
+      // skips must carry across that rotation to reach the 2-in-a-row reframe.
       setTimeLeft(currentTask.microTask.durationMin * 60)
     }
   }, [currentTask?.id])
@@ -51,25 +54,29 @@ export function JustDoThisCard({ tasks, onComplete, onSkip, onPause, onEvent }: 
   const handleStartTiny = useCallback(() => {
     setTinyMode(true)
     setReframe(false)
-    setSkipRun(0)
+    skipRunRef.current = 0
     setTimeLeft(120)
     onEvent?.('tiny')
   }, [onEvent])
 
   const handleSkip = useCallback(() => {
     if (!currentTask) return
-    const nextRun = skipRun + 1
-    // Second skip in a row → pause and offer the reframe rather than skipping.
+    const nextRun = skipRunRef.current + 1
+    // Second skip in a row → hold on this task and offer the reframe rather than
+    // skipping straight past it.
     if (nextRun >= 2 && !reframe) {
+      skipRunRef.current = nextRun
       setReframe(true)
       onEvent?.('reframe')
       return
     }
-    setSkipRun(nextRun)
+    // A first skip, or skipping past the reframe — record it and move on. Reset the
+    // run to 0 when she skips past the reframe so she's never trapped inside it.
+    skipRunRef.current = reframe ? 0 : nextRun
     setReframe(false)
     setCompletedIds(prev => new Set(prev).add(currentTask.id))
     onSkip?.(currentTask.microTask.id)
-  }, [currentTask, onSkip, skipRun, reframe, onEvent])
+  }, [currentTask, onSkip, reframe, onEvent])
 
   // Pause: set this one aside for later. It stays pending (not done, not skipped)
   // so it comes back around — for when a quick task is running long.
@@ -90,7 +97,7 @@ export function JustDoThisCard({ tasks, onComplete, onSkip, onPause, onEvent }: 
 
   const handleComplete = useCallback(() => {
     if (!currentTask) return
-    setSkipRun(0)
+    skipRunRef.current = 0
     setReframe(false)
     setCompletedIds(prev => new Set(prev).add(currentTask.id))
     onComplete?.(currentTask.microTask.id)

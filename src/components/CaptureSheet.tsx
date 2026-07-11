@@ -93,7 +93,8 @@ export function CaptureSheet({ open, onClose, apiKey, userContext, onAddGoal, in
         })
         const data = await res.json()
         if (!res.ok) {
-          setError(data.error || 'Could not read that photo')
+          // Never surface the raw API error to her — keep it plain and calm.
+          setError("Couldn't read the photo right now. Try again in a minute.")
         } else if (!data.items?.length) {
           setError("Could not find any items in that photo. Try a clearer shot.")
         } else {
@@ -270,7 +271,7 @@ export function CaptureSheet({ open, onClose, apiKey, userContext, onAddGoal, in
                     {busy ? (
                       <><Loader2 size={28} className="animate-spin text-today-ink" /><span className="text-sm text-muted">Reading your list...</span></>
                     ) : (
-                      <><Illo src={ILLO.snapList} className="h-16 w-auto mb-1" /><span className="text-sm font-semibold">Take or upload a photo</span><span className="text-xs text-muted">She writes it, the app reads it</span></>
+                      <><Illo src={ILLO.snapList} className="h-16 w-auto mb-1" /><span className="text-sm font-semibold">Take or upload a photo</span><span className="text-xs text-muted">You write it, the app reads it</span></>
                     )}
                   </button>
                 </div>

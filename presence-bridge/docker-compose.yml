@@ -8,6 +8,11 @@ services:
     # 1883 port directly (QNAP's docker bridge can't hairpin to host ports).
     network_mode: host
     env_file: .env
+    environment:
+      # The container clock drives inActiveHours() for the keep-alive. node:20-alpine
+      # defaults to UTC; pin it to her wall time so keep-alives run during her real
+      # day, not shifted by 7-8 hours. Overridable via .env.
+      TZ: ${TZ:-America/Los_Angeles}
     logging:
       driver: json-file
       options:

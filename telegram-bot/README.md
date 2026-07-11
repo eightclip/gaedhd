@@ -66,11 +66,23 @@ Key fields:
 | `JOHN_CHAT_ID` | no | John's chat ID — for `/focus` body-doubling pings |
 | `QUIET_START` | no | Hour (0-23) quiet begins. Default: 21 |
 | `QUIET_END` | no | Hour (0-23) quiet ends. Default: 8 |
+| `MORNING_PROMPT_ENABLED` | no | Set `true` for the daily "what are you trying to do today?" prompt |
+| `MORNING_HOUR` | no | Hour (0-23) the morning prompt fires. Default: 9 |
+| `MORNING_CHAT_ID` | if morning prompt | Who gets it. Falls back to `NUDGE_CHAT_ID` |
 | `GAEDHD_BASE_URL` | no | Default: https://gaedhd.jmj.fyi |
+| `TZ` | no | Container timezone. Default (via compose): America/Los_Angeles |
+
+The full list with placeholder values is in `.env.example` — `cp .env.example .env` and edit.
 
 ---
 
 ## Running on QNAP
+
+**The shipped path is `deploy.sh`** (what John actually uses): from your Mac, run
+`./telegram-bot/deploy.sh`. It rsyncs this directory to
+`/share/CACHEDEV1_DATA/Container/gaedhd-telegrambot` on the QNAP (over the `what-server`
+ssh alias) and runs `docker compose build && up -d`. The `.env` on the QNAP is excluded
+from the rsync, so set it there once. The manual options below are for reference.
 
 ### Option A: plain Node + pm2
 
@@ -82,9 +94,9 @@ SSH into the QNAP and run once to set up:
 npm install -g pm2
 
 # Clone or copy the telegram-bot/ directory onto the QNAP, e.g.:
-# /share/homes/admin/bots/gaedhd-telegram-bot/
+# /share/CACHEDEV1_DATA/Container/gaedhd-telegrambot/
 
-cd /share/homes/admin/bots/gaedhd-telegram-bot
+cd /share/CACHEDEV1_DATA/Container/gaedhd-telegrambot
 npm install
 cp .env.example .env
 nano .env   # fill in your values
@@ -145,7 +157,7 @@ docker run -d \
 
 ```bash
 # pm2 approach
-cd /share/homes/admin/bots/gaedhd-telegram-bot
+cd /share/CACHEDEV1_DATA/Container/gaedhd-telegrambot
 # copy updated index.js here
 pm2 restart gaedhd-bot
 

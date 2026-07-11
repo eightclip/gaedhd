@@ -1,3 +1,4 @@
+import { auth } from '@/auth'
 import { sendJohn } from '@/lib/notify'
 
 export const runtime = 'nodejs'
@@ -8,6 +9,12 @@ export const dynamic = 'force-dynamic'
 // #11). John is the built-in body double — this pings him to co-work. No-ops
 // gracefully if JOHN_CHAT_ID isn't configured (the in-app timer still works).
 export async function POST(request: Request) {
+  // Explicit gate: middleware auth() fails open (proceeds to the route) if it throws,
+  // so it's defense-in-depth only. Check the session here before parsing the body or
+  // pinging John, so a stranger can't spam him with focus-session notifications.
+  const session = await auth()
+  if (!session?.user?.email) return Response.json({ error: 'unauthorized' }, { status: 401 })
+
   let minutes = 20
   try {
     const body = await request.json()

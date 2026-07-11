@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { auth } from '@/auth'
 
 const SYSTEM_PROMPT = `You are GaeDHD, an ADHD-friendly second brain. Turn whatever she captures into an
 ordered list of next actions, where the first one is the single thing she can do right now.
@@ -57,6 +58,12 @@ Respond ONLY with JSON shaped: {"title": "...", "emoji": "...", "questions": [".
 }
 
 export async function POST(request: NextRequest) {
+  // Explicit gate: middleware auth() fails open (proceeds to the route) if it throws,
+  // so it's defense-in-depth only. This route spends the server ANTHROPIC_API_KEY, so
+  // check the session here before parsing the body or reaching out to Claude.
+  const session = await auth()
+  if (!session?.user?.email) return Response.json({ error: 'unauthorized' }, { status: 401 })
+
   const { goal, category, lifeArea, apiKey, userContext, helpLevel } = await request.json()
 
   if (!goal || typeof goal !== 'string') {
@@ -76,7 +83,7 @@ export async function POST(request: NextRequest) {
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
+          model: 'claude-opus-4-8',
           max_tokens: 1024,
           system: SYSTEM_PROMPT + COACHING[help],
           messages: [
