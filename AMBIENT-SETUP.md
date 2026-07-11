@@ -420,6 +420,9 @@ X-GNOME-Autostart-enabled=true
 EOF
 ```
 
+> The `?token=` is required (and `--incognito` means nothing persists between boots, so
+> it can only live in the URL). This is how the studio Pi is actually configured.
+
 `unclutter` hides the mouse pointer. Reboot to test.
 
 ### 5.3 TV power schedule via Home Assistant

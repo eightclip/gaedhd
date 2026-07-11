@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
-import { Plus } from 'lucide-react'
+import { Check, ChevronDown, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { JustDoThisCard } from './JustDoThisCard'
@@ -26,7 +26,7 @@ import { FocusSession } from './FocusSession'
 import { RECIPIENT_NAME } from '@/lib/letter'
 import { Illo } from './Illo'
 import { ILLO, DONE_ILLOS, pickDaily } from '@/lib/illustrations'
-import { categoryIcon, BREAK_ICON } from '@/lib/icons'
+import { categoryIcon } from '@/lib/icons'
 import { categoryColors } from '@/lib/mock-data'
 import type { CalendarEvent, TimelineItem } from '@/lib/types'
 import { useStore } from '@/lib/store'
@@ -43,9 +43,10 @@ const BREAKS = [
 ]
 
 // An italic-accent serif section header: "Just do this" → "Just do *this*".
-function Head({ lead, accent, className = '' }: { lead: string; accent: string; className?: string }) {
+// Only the hero section speaks at full volume; everything else stays a notch down.
+function Head({ lead, accent, className = '', hero = false }: { lead: string; accent: string; className?: string; hero?: boolean }) {
   return (
-    <h2 className={`font-display text-3xl font-bold tracking-tight ${className}`}>
+    <h2 className={`font-display ${hero ? 'text-3xl' : 'text-2xl'} font-bold tracking-tight ${className}`}>
       {lead} <span className="italic font-normal">{accent}</span>
     </h2>
   )
@@ -61,6 +62,10 @@ export function TodayView() {
   const [calFailed, setCalFailed] = useState<string[]>([])
   const [captureOpen, setCaptureOpen] = useState(false)
   const [breakMode, setBreakMode] = useState<{ label: string; mins: number; promptWater: boolean } | null>(null)
+  // The helper chips stay one quiet row; tapping "Break" swaps them for the three options.
+  const [breakChooser, setBreakChooser] = useState(false)
+  // "Earlier today" in the flow rail is folded away by default — no wall of dimmed past.
+  const [pastOpen, setPastOpen] = useState(false)
   const [inbox, setInbox] = useState<{ id: string; raw_text: string | null; source: string }[]>([])
   const [birthdayDismissed, setBirthdayDismissed] = useState(false)
   const [overwhelmed, setOverwhelmed] = useState(false)
@@ -214,7 +219,11 @@ export function TodayView() {
   const noCalendars = !calLoading && calCount === 0
 
   const nowMs = now.getTime()
-  const firstUpcoming = timeline.findIndex(it => new Date(it.type === 'event' ? it.data.startTime : it.data.startTime).getTime() > nowMs)
+  // What's fully behind her folds into one "Earlier" line; the rail leads with now.
+  const isBehind = (it: TimelineItem) => new Date(it.data.endTime).getTime() <= nowMs
+  const pastItems = timeline.filter(isBehind)
+  const activeItems = timeline.filter(it => !isBehind(it))
+  const firstUpcoming = activeItems.findIndex(it => new Date(it.data.startTime).getTime() > nowMs)
 
   const nowMarker = (
     <div key="now-marker" className="flex gap-3 items-center py-0.5">
@@ -228,16 +237,40 @@ export function TodayView() {
     </div>
   )
 
+  const renderItem = (item: TimelineItem) =>
+    item.type === 'event'
+      ? <TimelineEvent key={item.data.id} event={item.data} now={now} />
+      : <TimelineGap key={item.data.id} gap={item.data} scheduledTasks={item.scheduledTasks} now={now} />
+
   const railRows: React.ReactNode[] = []
-  timeline.forEach((item, i) => {
-    if (i === firstUpcoming) railRows.push(nowMarker)
+  if (pastItems.length > 0) {
     railRows.push(
-      item.type === 'event'
-        ? <TimelineEvent key={item.data.id} event={item.data} now={now} />
-        : <TimelineGap key={item.data.id} gap={item.data} scheduledTasks={item.scheduledTasks} now={now} />
+      <button
+        key="earlier"
+        onClick={() => setPastOpen(o => !o)}
+        className="w-full flex items-center gap-2 px-1 py-1 text-left"
+      >
+        <Check size={13} className="text-success shrink-0" />
+        <span className="font-mono text-[11px] uppercase tracking-[0.15em] text-muted">
+          Earlier · {pastItems.length} behind you
+        </span>
+        <ChevronDown size={13} className={`text-muted transition-transform ${pastOpen ? 'rotate-180' : ''}`} />
+      </button>
     )
+    if (pastOpen) railRows.push(...pastItems.map(renderItem))
+  }
+  activeItems.forEach((item, i) => {
+    if (i === firstUpcoming) railRows.push(nowMarker)
+    railRows.push(renderItem(item))
   })
-  if (firstUpcoming === -1 && timeline.length > 0) railRows.push(nowMarker)
+  if (firstUpcoming === -1) railRows.push(nowMarker)
+  if (activeItems.length === 0 && timeline.length > 0) {
+    railRows.push(
+      <p key="day-done" className="text-sm text-muted px-1 pt-1">
+        That&apos;s the day. Nothing left on the rail.
+      </p>
+    )
+  }
 
   // ── Header (the date as the art) ──
   const header = (sizes: { day: string; num: string; month: string }) => (
@@ -253,13 +286,6 @@ export function TodayView() {
           <p className="font-mono text-xs text-muted mt-1.5">{format(now, 'h:mm a')}</p>
         </div>
       </div>
-      <button
-        onClick={() => { store.trackUse('overwhelm'); setDeciding(false); setFocusing(false); setOverwhelmed(true) }}
-        className="mt-5 inline-flex items-center gap-2 rounded-full px-5 py-3 text-base font-bold text-today-ink hover:opacity-90 active:scale-95 transition-all"
-        style={{ backgroundColor: 'var(--today-tint)', boxShadow: 'inset 0 0 0 1.5px var(--today-ink)' }}
-      >
-        <span className="text-xl">🫧</span> Feeling overwhelmed?
-      </button>
     </div>
   )
 
@@ -313,20 +339,57 @@ export function TodayView() {
     />
   )
 
+  // One quiet row of escape hatches under the hero. Same one-tap reach the old
+  // buttons had, at a fraction of the visual volume. "Break" expands in place.
+  const chipClass = 'inline-flex items-center gap-1.5 rounded-full bg-card border border-card-border px-3.5 py-2 text-[13px] font-semibold text-muted hover:text-foreground hover:border-today-ink/40 active:scale-95 transition-all'
+  const helperChips = (
+    <div className="flex flex-wrap items-center gap-2 mt-4">
+      {breakChooser ? (
+        <>
+          {BREAKS.map(b => (
+            <button
+              key={b.kind}
+              className={chipClass}
+              onClick={() => { setBreakChooser(false); setBreakMode({ label: b.label, mins: b.mins, promptWater: b.promptWater }) }}
+            >
+              <span>{b.emoji}</span> {b.label} · {b.mins}m
+            </button>
+          ))}
+          <button className={chipClass} onClick={() => setBreakChooser(false)} aria-label="Never mind">✕</button>
+        </>
+      ) : (
+        <>
+          <button
+            className={chipClass}
+            onClick={() => { store.trackUse('overwhelm'); setDeciding(false); setFocusing(false); setOverwhelmed(true) }}
+          >
+            <span>🫧</span> Overwhelmed?
+          </button>
+          {nextActions.length >= 2 && (
+            <button
+              className={chipClass}
+              onClick={() => { store.trackUse('decide'); setOverwhelmed(false); setFocusing(false); setDeciding(true) }}
+            >
+              <span>🤔</span> Stuck?
+            </button>
+          )}
+          <button className={chipClass} onClick={() => setBreakChooser(true)}>
+            <span>☕</span> Break
+          </button>
+          <button
+            className={chipClass}
+            onClick={() => { store.trackUse('focus'); setOverwhelmed(false); setDeciding(false); setFocusing(true) }}
+          >
+            <span>🤝</span> Together
+          </button>
+        </>
+      )}
+    </div>
+  )
+
   const justDoThis = (
     <section className="mb-10">
-      <div className="flex items-center justify-between mb-4">
-        <Head lead="Just do" accent="this" />
-        {!breakMode && nextActions.length >= 2 && (
-          <button
-            onClick={() => { store.trackUse('decide'); setOverwhelmed(false); setFocusing(false); setDeciding(true) }}
-            className="shrink-0 inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-bold text-today-ink hover:opacity-90 active:scale-95 transition-all"
-            style={{ backgroundColor: 'var(--today-tint)', boxShadow: 'inset 0 0 0 1.5px var(--today-ink)' }}
-          >
-            <span className="text-lg">🤔</span> Stuck deciding?
-          </button>
-        )}
-      </div>
+      <Head lead="Just do" accent="this" hero className="mb-4" />
       {breakMode ? (
         <BreakCard
           label={breakMode.label}
@@ -358,32 +421,7 @@ export function TodayView() {
               <p className="text-muted text-sm mt-1">Snap a photo of a list, or jot one thing you want to get done.</p>
             </button>
           )}
-
-          {/* Quick breaks: a timed 3-5 min step away, with a water nudge */}
-          <div className="grid grid-cols-3 gap-3 mt-4">
-            {BREAKS.map(b => {
-              const Icon = BREAK_ICON[b.kind]
-              return (
-                <button
-                  key={b.kind}
-                  onClick={() => setBreakMode({ label: b.label, mins: b.mins, promptWater: b.promptWater })}
-                  className="rounded-2xl bg-card border border-card-border py-4 hover:border-today-ink/40 active:scale-[0.97] transition-all flex flex-col items-center"
-                >
-                  <Icon size={26} className="mb-1.5 text-today-ink" />
-                  <span className="font-display text-base font-bold">{b.label}</span>
-                </button>
-              )
-            })}
-          </div>
-
-          {/* Body doubling: start a co-working focus block, optionally with John */}
-          <button
-            onClick={() => { store.trackUse('focus'); setOverwhelmed(false); setDeciding(false); setFocusing(true) }}
-            className="w-full mt-3 rounded-2xl py-4 text-base font-bold text-today-ink hover:opacity-90 active:scale-[0.99] transition-all flex items-center justify-center gap-2"
-            style={{ backgroundColor: 'var(--today-tint)', boxShadow: 'inset 0 0 0 1.5px var(--today-ink)' }}
-          >
-            <span className="text-xl">🤝</span> Focus together
-          </button>
+          {helperChips}
         </>
       )}
     </section>
@@ -421,22 +459,14 @@ export function TodayView() {
     </section>
   )
 
-  const winsTiles = (
-    <div className="grid grid-cols-3 gap-3 mb-10">
-      <div className="rounded-[1.5rem] p-5" style={{ backgroundColor: 'var(--today-tint)' }}>
-        <p className="font-display text-4xl font-extrabold leading-none text-today-ink">{momentum.streak}</p>
-        <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mt-2">day streak</p>
-        <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mt-1">{momentum.weekCount}/7 this week</p>
-      </div>
-      <div className="rounded-[1.5rem] p-5 bg-success-soft">
-        <p className="font-display text-4xl font-extrabold leading-none text-success">{completedTasks}</p>
-        <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mt-2">done</p>
-      </div>
-      <div className="rounded-[1.5rem] p-5 bg-muted-light">
-        <p className="font-display text-4xl font-extrabold leading-none">{totalMinutes}<span className="text-xl">m</span></p>
-        <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-muted mt-2">focused</p>
-      </div>
-    </div>
+  // The three big stat tiles, reduced to one soft line. The numbers still land;
+  // they just stop competing with the day.
+  const momentumLine = (
+    <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted text-center mb-10">
+      {momentum.weekCount}/7 days this week
+      {completedTasks > 0 && <> · <span className="text-success font-bold">{completedTasks} done</span></>}
+      {totalMinutes > 0 && <> · {totalMinutes}m focused</>}
+    </p>
   )
 
   const fab = (
@@ -503,46 +533,43 @@ export function TodayView() {
     </div>
   )
 
-  // ── Desktop: editorial left column + bento rail ──
+  // ── Desktop: editorial left column + bento rail. The hero leads; everything
+  // glanceable lives in the rail. ──
   const desktop = (
     <div className="hidden md:grid md:grid-cols-[1fr_340px] md:gap-10 md:p-10 md:max-w-6xl">
       <div>
         {header({ day: 'text-7xl', num: 'text-[9rem]', month: 'text-2xl' })}
-        {datesCard}
         {meetingCopilot}
-        {presence}
         {justDoThis}
+        {presence}
         {rhythm}
         {gymPicker}
         {flowSection}
+        {momentumLine}
       </div>
       <div className="space-y-10 pt-2">
-        {moodCheckin}
+        {datesCard}
         {water}
-        {winsTiles}
         {goalsRail}
+        {moodCheckin}
       </div>
     </div>
   )
 
-  // ── Mobile ──
+  // ── Mobile: one thing first, meters and history below the fold. ──
   const mobile = (
     <div className="md:hidden max-w-lg mx-auto px-5 pt-12">
-      <div className="flex items-center gap-2 mb-6">
-        <Illo src="/avatar.png" alt="" className="w-8 h-8 rounded-lg" />
-        <span className="font-display text-base font-bold">GaeDHD</span>
-      </div>
       {header({ day: 'text-6xl', num: 'text-[7rem]', month: 'text-xl' })}
-      {datesCard}
-      {moodCheckin}
-      <div className="mb-10">{water}</div>
       {meetingCopilot}
-      {presence}
       {justDoThis}
+      {datesCard}
+      {presence}
       {rhythm}
+      <div className="mb-10">{water}</div>
       {gymPicker}
       {flowSection}
-      {winsTiles}
+      {moodCheckin}
+      {momentumLine}
     </div>
   )
 

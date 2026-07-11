@@ -7,6 +7,16 @@ Source of truth for the phone, the web dashboard, and the office TV kiosk.
 
 **Color where she's glancing. Calm where she's working.**
 
+## The second rule (hierarchy)
+
+**One voice at full volume.** On any surface, exactly one element gets the big
+serif treatment and the color: the thing she should do now. Everything else is
+either one quiet tap away (helper chips, not buttons), folded (past timeline rows
+collapse into one "Earlier" line), demoted (stats are a single mono line, not
+tiles), or gone when its moment has passed (the gym picker disappears once the
+day's slots are behind her). If a section wants a 3xl headline, ask which existing
+one it's taking volume from.
+
 - Home, kiosk, and meeting surfaces get color: soft color-blocked tiles, a color-of-the-day
   tint, her hand-drawn art.
 - Task and ritual lists go quiet: one soft field, serif headline, monospace timestamps,
